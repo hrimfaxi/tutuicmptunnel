@@ -255,7 +255,7 @@ int cmd_server(int argc, char **argv) {
     } else if (is_help_kw(tok)) {
       goto usage;
     } else {
-      log_error("unknown keyword \"%s\"\n", tok);
+      log_error("unknown keyword \"%s\"", tok);
     usage:
       return print_server_usage(argc, argv), -EINVAL;
     }
@@ -322,7 +322,7 @@ int cmd_client(int argc, char **argv) {
     } else if (is_help_kw(tok)) {
       goto usage;
     } else {
-      log_error("unknown keyword \"%s\"\n", tok);
+      log_error("unknown keyword \"%s\"", tok);
     usage:
       return print_client_usage(argc, argv), -EINVAL;
     }
@@ -438,7 +438,7 @@ int cmd_client_add(int argc, char **argv) {
     } else if (is_help_kw(tok)) {
       goto usage;
     } else {
-      log_error("unknown keyword \"%s\"\n", tok);
+      log_error("unknown keyword \"%s\"", tok);
     usage:
       return print_client_add_usage(argc, argv), -EINVAL;
     }
@@ -452,7 +452,7 @@ int cmd_client_add(int argc, char **argv) {
   }
 
   if (!address || !port || !uid_set) {
-    log_error("UID, address, and port must be specified.\n");
+    log_error("UID, address, and port must be specified.");
     goto usage;
   }
 
@@ -567,7 +567,7 @@ int cmd_client_del(int argc, char **argv) {
       goto usage;
     } else {
       /* 未知关键字 */
-      log_error("unknown keyword \"%s\"\n", tok);
+      log_error("unknown keyword \"%s\"", tok);
     usage:
       return print_client_del_usage(argc, argv), -EINVAL;
     }
@@ -712,7 +712,7 @@ int cmd_server_add(int argc, char **argv) {
       goto usage;
     } else {
       /* 未知关键字 */
-      log_error("unknown keyword \"%s\"\n", tok);
+      log_error("unknown keyword \"%s\"", tok);
     usage:
       return print_server_add_usage(argc, argv), -EINVAL;
     }
@@ -720,7 +720,7 @@ int cmd_server_add(int argc, char **argv) {
 
   /* 必要字段检查 */
   if (!uid_set || !address || !port) {
-    log_error("uid, address and port must be specified\n");
+    log_error("uid, address and port must be specified");
     goto usage;
   }
 
@@ -819,7 +819,7 @@ int cmd_server_del(int argc, char **argv) {
       goto usage;
     } else {
       /* 未知关键字 */
-      log_error("unknown keyword \"%s\"\n", tok);
+      log_error("unknown keyword \"%s\"", tok);
     usage:
       return print_server_del_usage(argc, argv), -EINVAL;
     }
@@ -922,7 +922,7 @@ int cmd_status(int argc, char **argv) {
     } else if (is_help_kw(tok)) {
       goto usage;
     } else {
-      log_error("unknown keyword \"%s\"\n", tok);
+      log_error("unknown keyword \"%s\"", tok);
     usage:
       return print_status_usage(argc, argv), -EINVAL;
     }
@@ -1097,7 +1097,7 @@ int cmd_dump(int argc, char **argv) {
     if (is_help_kw(tok)) {
       goto usage;
     } else {
-      log_error("unknown keyword \"%s\"\n", tok);
+      log_error("unknown keyword \"%s\"", tok);
     usage:
       return print_dump_usage(argc, argv), -EINVAL;
     }

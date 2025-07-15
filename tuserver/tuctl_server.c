@@ -204,7 +204,7 @@ int main(int argc, char **argv) {
   {
     char bindstr[128];
     try2(setup_socket(&sock, bind_addr, port, bindstr, sizeof(bindstr)));
-    log_info("Server listen %s, replay window = %ds, max=%d\n", bindstr, window, replay_max);
+    log_info("Server listen %s, replay window = %ds, max=%d", bindstr, window, replay_max);
   }
 
   replay_window_init(&rwin, window, replay_max);
