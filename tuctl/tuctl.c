@@ -20,6 +20,8 @@
 #include "tutuicmptunnel.debug.skel.h"
 #include "tutuicmptunnel.skel.h"
 
+#define HOMEPAGE_STR "https://github.com/hrimfaxi/" STR(PROJECT_NAME)
+
 #ifndef LIBBPF_VERSION_GEQ
 #if defined(LIBBPF_MAJOR_VERSION) && defined(LIBBPF_MINOR_VERSION)
 #define LIBBPF_VERSION_GEQ(major, minor)                                                                                       \
@@ -958,7 +960,7 @@ int cmd_status(int argc, char **argv) {
 
     build_type_map_fd = try2(bpf_obj_get(BUILD_TYPE_MAP_PATH), _("bpf_obj_get: build_type_map: %s"), strret);
     try2(get_build_type_map(build_type_map_fd, &build_type), _("get build type map: %s"), strret);
-    printf("tutuicmptunnel: Role: %s, BPF build type: %s, no-fixup: %s\n\n", cfg.is_server ? "Server" : "Client",
+    printf("%s: Role: %s, BPF build type: %s, no-fixup: %s\n\n", STR(PROJECT_NAME), cfg.is_server ? "Server" : "Client",
            build_type ? "Debug" : "Release", cfg.no_fixup ? "on" : "off");
   }
 
@@ -1701,7 +1703,7 @@ int cmd_help(int argc, char **argv) {
 int cmd_version(int argc, char **argv) {
   (void) argc;
   (void) argv;
-  printf("tutuicmptunnel: %s\n", VERSION_STR);
+  printf("%s: %s (%s)\n", STR(PROJECT_NAME), VERSION_STR, HOMEPAGE_STR);
   return 0;
 }
 
