@@ -663,7 +663,6 @@ static int print_server_add_usage(int argc, char **argv) {
 int cmd_server_add(int argc, char **argv) {
   uint8_t     uid         = 0;
   const char *address     = NULL;
-  uint16_t    sport       = 0;
   uint16_t    port        = 0;
   uint16_t    icmp_id     = 0;
   bool        uid_set     = false;
@@ -695,7 +694,7 @@ int cmd_server_add(int argc, char **argv) {
       if (++i >= argc)
         goto usage;
 
-      try(parse_sport(argv[i], &sport));
+      log_warn("ignore obsolete sport keyword");
     } else if (matches(tok, "icmp-id") == 0) {
       if (++i >= argc)
         goto usage;
@@ -742,7 +741,6 @@ int cmd_server_add(int argc, char **argv) {
   user = (typeof(user)) {
     .address = client_addr,
     .icmp_id = htons(icmp_id),
-    .sport   = htons(sport),
     .dport   = htons(port),
   };
 
@@ -976,8 +974,8 @@ int cmd_status(int argc, char **argv) {
       char *uidstr = NULL;
       try2(uid2string(key, &uidstr, 0), "uid2string: %s", strret);
       printf("  %s, Address: %s, "
-             "Sport: %u, Dport: %u, ICMP: %u",
-             uidstr, ipstr, ntohs(value.sport), ntohs(value.dport), ntohs(value.icmp_id));
+             "Dport: %u, ICMP: %u",
+             uidstr, ipstr, ntohs(value.dport), ntohs(value.icmp_id));
       free(uidstr);
 
       print_comment((const char *) value.comment, sizeof(value.comment), 0);
@@ -996,8 +994,8 @@ int cmd_status(int argc, char **argv) {
           char *uidstr = NULL;
           try2(uid2string(value.uid, &uidstr, 0), "uid2string: %s", strret);
           printf("  Address: %s, SPort: %u, DPort: %u => "
-                 "%s, Age: %llu\n",
-                 ipstr, ntohs(key.sport), ntohs(key.dport), uidstr, value.age);
+                 "%s, Age: %llu, Client Sport: %u\n",
+                 ipstr, ntohs(key.sport), ntohs(key.dport), uidstr, value.age, ntohs(value.client_sport));
           free(uidstr);
         });
       }
@@ -1136,9 +1134,8 @@ int cmd_dump(int argc, char **argv) {
              "%s "
              "addr %s "
              "icmp-id %u "
-             "sport %u "
              "port %u",
-             uidstr, ipstr, ntohs(value.icmp_id), ntohs(value.sport), ntohs(value.dport));
+             uidstr, ipstr, ntohs(value.icmp_id), ntohs(value.dport));
       free(uidstr);
 
       print_comment((const char *) value.comment, sizeof(value.comment), 1);

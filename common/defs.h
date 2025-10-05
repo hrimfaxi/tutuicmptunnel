@@ -41,15 +41,15 @@ struct session_key {
 };
 
 struct session_value {
-  __u64 age;
-  __u8  uid;
+  __u64  age;
+  __u8   uid;
+  __be16 client_sport;
 };
 
 // User struct to store in the map
 struct user_info {
   struct in6_addr address;     // IP address in network byte order
   __be16          icmp_id;     // ICMP ID
-  __be16          sport;       // Source port
   __be16          dport;       // Destination port
   __u8            comment[22]; // Comment
 };

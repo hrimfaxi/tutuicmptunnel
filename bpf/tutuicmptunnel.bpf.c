@@ -905,7 +905,7 @@ int handle_egress(struct __sk_buff *skb) {
     }
 
     icmp_id  = user->icmp_id;
-    icmp_seq = user->sport;
+    icmp_seq = value_ptr->client_sport;
   } else {
     struct egress_peer_key peer_key = {
       .port = udp->dest,
@@ -1067,28 +1067,32 @@ err_cleanup:
   return err;
 }
 
-static __always_inline int update_session_map(struct user_info *user, __u8 uid) {
+static __always_inline int update_session_map(struct user_info *user, __u8 uid, __be16 icmp_seq) {
   int err;
-  // 更新icmp_id而非sport, 因为此时为nat转换后的源端口
-  struct session_key    insert = {.dport = user->dport, .sport = user->icmp_id, .address = user->address};
-  struct session_value *exist  = bpf_map_lookup_elem(&session_map, &insert);
-
+  struct session_key    key = {.dport = user->dport, .sport = user->icmp_id, .address = user->address};
+  struct session_value *exist  = bpf_map_lookup_elem(&session_map, &key);
   __u64 now = (bpf_ktime_get_ns() / NS_PER_SEC); // 当前时间（秒）
+
   if (exist) {
-    // 优化性能: 如果寿命小于1秒，不用更新
-    if (now - exist->age <= 1)
+    bool client_sport_changed = exist->client_sport != icmp_seq;
+    bool uid_changed          = exist->uid != uid;
+    bool age_exceed_1s        = (now > exist->age) && (now - exist->age > 1);
+
+    // 若没有变化且未超过 1 秒，不更新
+    if (!client_sport_changed && !uid_changed && !age_exceed_1s) {
       return 0;
+    }
   }
 
   struct session_value value = {
-    .uid = uid,
-    .age = now,
+    .uid          = uid,
+    .age          = now,
+    .client_sport = icmp_seq,
   };
 
-  // 不存在或者寿命大于1秒，更新
-  err = bpf_map_update_elem(&session_map, &insert, &value, BPF_ANY);
-  TUTU_LOG("update session_map: sport %5u, dport: %5u, age: %5u: ret: %d", bpf_ntohs(insert.sport), bpf_ntohs(insert.dport),
-           value.age, err);
+  err = bpf_map_update_elem(&session_map, &key, &value, BPF_ANY);
+  TUTU_LOG("update session_map: sport %5u, dport: %5u, age: %5u, client_sport: %5u, ret: %d", bpf_ntohs(key.sport), bpf_ntohs(key.dport),
+           value.age, bpf_ntohs(value.client_sport), err);
   return err;
 }
 
@@ -1165,16 +1169,14 @@ int handle_ingress(struct __sk_buff *skb) {
 
     // 优化：只有发生变化才需要更新user_map
     // icmp_id：客户端更新了icmp_id，此时需要更新
-    // icmp_seq: 客户端切换了源端口，此时需要更新
-    if (user->icmp_id != icmp_id || user->sport != icmp_seq) {
+    if (user->icmp_id != icmp_id) {
       user->icmp_id = icmp_id;
-      user->sport   = icmp_seq;
       // Update user info
       bpf_map_update_elem(&user_map, &uid, user, BPF_EXIST);
     }
 
     // 需要更新session_map
-    try2_ok(update_session_map(user, uid), "update session map: %d", _ret);
+    try2_ok(update_session_map(user, uid, icmp_seq), "update session map: %d", _ret);
   } else {
     if (ipv4) {
       try_ok(icmp->type == ICMP_ECHO_REPLY ? 0 : -1);
