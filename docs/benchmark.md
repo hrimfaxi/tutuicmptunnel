@@ -618,6 +618,77 @@ iperf Done.
 
 cpu占用率：4核60～70%
 ```
+## `wireguard`和`tutuicmptunnel-kmod`
+
+```
+❯ iperf3 -c peer-wg  -t 20
+Connecting to host peer-wg, port 5201
+[  5] local 10.200.103.2 port 38680 connected to 10.200.103.1 port 5201
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec   628 MBytes  5.27 Gbits/sec  297   1.12 MBytes
+[  5]   1.00-2.00   sec   620 MBytes  5.20 Gbits/sec    0   1.38 MBytes
+[  5]   2.00-3.00   sec   657 MBytes  5.51 Gbits/sec   30   1.29 MBytes
+[  5]   3.00-4.00   sec   689 MBytes  5.78 Gbits/sec   22   1.22 MBytes
+[  5]   4.00-5.00   sec   647 MBytes  5.43 Gbits/sec    9   1.10 MBytes
+[  5]   5.00-6.00   sec   611 MBytes  5.12 Gbits/sec    3    986 KBytes
+[  5]   6.00-7.00   sec   585 MBytes  4.91 Gbits/sec    0   1.24 MBytes
+[  5]   7.00-8.00   sec   630 MBytes  5.29 Gbits/sec   24   1.10 MBytes
+[  5]   8.00-9.00   sec   670 MBytes  5.61 Gbits/sec   11   1.06 MBytes
+[  5]   9.00-10.00  sec   694 MBytes  5.82 Gbits/sec    4   1017 KBytes
+[  5]  10.00-11.00  sec   654 MBytes  5.48 Gbits/sec    0   1.31 MBytes
+[  5]  11.00-12.00  sec   683 MBytes  5.73 Gbits/sec    3   1.28 MBytes
+[  5]  12.00-13.00  sec   690 MBytes  5.78 Gbits/sec    4   1.26 MBytes
+[  5]  13.00-14.00  sec   645 MBytes  5.41 Gbits/sec   11   1.17 MBytes
+[  5]  14.00-15.00  sec   695 MBytes  5.82 Gbits/sec    4   1.15 MBytes
+[  5]  15.00-16.00  sec   715 MBytes  6.00 Gbits/sec   16   1.10 MBytes
+[  5]  16.00-17.00  sec   710 MBytes  5.95 Gbits/sec    3   1.09 MBytes
+[  5]  17.00-18.00  sec   570 MBytes  4.79 Gbits/sec    0   1.31 MBytes
+[  5]  18.00-19.00  sec   636 MBytes  5.33 Gbits/sec   13   1.21 MBytes
+[  5]  19.00-20.00  sec   715 MBytes  5.99 Gbits/sec    6   1.20 MBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-20.00  sec  12.8 GBytes  5.51 Gbits/sec  460            sender
+[  5]   0.00-20.00  sec  12.8 GBytes  5.51 Gbits/sec                  receiver
+
+iperf Done.
+
+cpu占用率: 单核80%，其余三核30～40%
+
+hrimfaxi in 🌐 archlinux2 in tutuicmptunnel/kmod on  kmod [!?] via C v15.2.1-gcc took 20s
+❯ iperf3 -c peer-wg  -t 20 -R
+Connecting to host peer-wg, port 5201
+Reverse mode, remote host peer-wg is sending
+[  5] local 10.200.103.2 port 44236 connected to 10.200.103.1 port 5201
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec   604 MBytes  5.06 Gbits/sec
+[  5]   1.00-2.00   sec   688 MBytes  5.77 Gbits/sec
+[  5]   2.00-3.00   sec   638 MBytes  5.36 Gbits/sec
+[  5]   3.00-4.00   sec   550 MBytes  4.61 Gbits/sec
+[  5]   4.00-5.00   sec   654 MBytes  5.49 Gbits/sec
+[  5]   5.00-6.00   sec   617 MBytes  5.18 Gbits/sec
+[  5]   6.00-7.00   sec   675 MBytes  5.66 Gbits/sec
+[  5]   7.00-8.00   sec   614 MBytes  5.15 Gbits/sec
+[  5]   8.00-9.00   sec   579 MBytes  4.86 Gbits/sec
+[  5]   9.00-10.00  sec   657 MBytes  5.51 Gbits/sec
+[  5]  10.00-11.00  sec   529 MBytes  4.42 Gbits/sec
+[  5]  11.00-12.00  sec   632 MBytes  5.32 Gbits/sec
+[  5]  12.00-13.00  sec   593 MBytes  4.97 Gbits/sec
+[  5]  13.00-14.00  sec   518 MBytes  4.34 Gbits/sec
+[  5]  14.00-15.00  sec   686 MBytes  5.76 Gbits/sec
+[  5]  15.00-16.00  sec   732 MBytes  6.14 Gbits/sec
+[  5]  16.00-17.00  sec   738 MBytes  6.19 Gbits/sec
+[  5]  17.00-18.00  sec   520 MBytes  4.36 Gbits/sec
+[  5]  18.00-19.00  sec   700 MBytes  5.87 Gbits/sec
+[  5]  19.00-20.00  sec   631 MBytes  5.29 Gbits/sec
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-20.00  sec  12.3 GBytes  5.27 Gbits/sec  129            sender
+[  5]   0.00-20.00  sec  12.3 GBytes  5.27 Gbits/sec                  receiver
+
+cpu占用率: 四核80%左右
+
+iperf Done.
+```
 
 ## 总结
 
@@ -639,6 +710,8 @@ cpu占用率：4核60～70%
 | | **接收 (Receive)** | **0.46** | **-97.6%** | 中负载 (4核~60%) |
 | **7. WireGuard + tutuicmptunnel** | **发送 (Send)** | **4.42** | **-79.7%** | 高负载 (1核\~90-100%, 其余~20-30%) |
 | | **接收 (Receive)** | **4.43** | **-77.0%** | 高负载且均衡 (4核~60-70%) |
+| **8. WireGuard + tutuicmptunnel-kmod** | **发送 (Send)** | **5.51** | **-74.7%** | 高负载 (单核80%，其余三核30～40%) |
+| | **接收 (Receive)** | **5.27** | **-72.6%** | 高负载且均衡 (4核~60-70%) |
 
 * 在发送方向，`tutuicmptunnel` 跑出了 `4.42 Gbits/sec` 的成绩，是 `udp2raw` (`0.841 Gbits/sec`) 的 `5.26` 倍。
 * 在接收方向，`tutuicmptunnel` 跑出了 `4.43 Gbits/sec` 的成绩，是 `udp2raw` (`0.684 Gbits/sec`) 的 `6.47` 倍。
@@ -650,3 +723,6 @@ cpu占用率：4核60～70%
   * 在发送方向，`tutuicmptunnel` 跑出了 `4.42 Gbits/sec` 的成绩，是 `pingtunnel` (`0.490 Gbits/sec`) 的 `9.02` 倍。
   * 在接收方向，`tutuicmptunnel` 跑出了 `4.43 Gbits/sec` 的成绩，是 `pingtunnel` (`0.460 Gbits/sec`) 的 `9.63` 倍。
 * `mimic`作为同为基于`bpf`的`udp`转`faketcp`工具，最大性能为`tutuicmptunnel`的70%左右。
+* `tutuicmptunnel-kmod`是基于`nftables`的内核模块版本，所以性能比`bpf`的`tutuicmptunnel`快：
+  * 在发送方向，`tutuicmptunnel-kmod` 跑出了 `5.51 Gbits/sec` 的成绩，是 `tutuicmptunnel` (`4.42 Gbits/sec`) 的 `1.25` 倍。
+  * 在接收方向，`tutuicmptunnel-kmod` 跑出了 `5.27 Gbits/sec` 的成绩，是 `tutuicmptunnel` (`4.43 Gbits/sec`) 的 `1.19` 倍。
