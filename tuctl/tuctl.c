@@ -490,17 +490,24 @@ int cmd_client_add(int argc, char **argv) {
   err                 = set_ingress_peer_map(ingress_peer_map_fd, &ingress_peer_key, &ingress_peer_value);
   if (err) {
     if (errno == EEXIST) {
-      char ipstr[INET6_ADDRSTRLEN], *uidstr = NULL;
-      try2(ipv6_ntop(ipstr, &in6), "ipv6_ntop: %s", strret);
-      try2(uid2string(uid, &uidstr, 0), "uid2string: %s", strret);
-      log_error("Unable to configure UID %s for address %s port %u because another port is already in use on this address",
-                uidstr, ipstr, port);
-      free(uidstr);
+      try2(bpf_map_lookup_elem(ingress_peer_map_fd, &ingress_peer_key, &ingress_peer_value),
+           _("bpf_map_lookup_elem ingress peer map uid: %u: %s"), uid, strret);
+
+      if (port == htons(ingress_peer_value.port)) {
+        err = 0;
+      } else {
+        char ipstr[INET6_ADDRSTRLEN], *uidstr = NULL;
+        try2(ipv6_ntop(ipstr, &in6), "ipv6_ntop: %s", strret);
+        try2(uid2string(uid, &uidstr, 0), "uid2string: %s", strret);
+        log_error("Unable to configure UID %s for address %s port %u because another port is already in use on this address",
+                  uidstr, ipstr, port);
+        free(uidstr);
+        goto err_cleanup;
+      }
     } else {
       log_error(_("set_ingress_peer_map failed: %s"), strerror(errno));
+      goto err_cleanup;
     }
-
-    goto err_cleanup;
   }
 
   egress_peer_map_fd = try2(bpf_obj_get(EGRESS_PEER_MAP_PATH), _("bpf obj get: %s"), strret);
