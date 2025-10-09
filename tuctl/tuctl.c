@@ -123,7 +123,7 @@ static int set_egress_peer_map(int fd, const struct egress_peer_key *key, const 
 }
 
 static int set_ingress_peer_map(int fd, const struct ingress_peer_key *key, const struct ingress_peer_value *value) {
-  return bpf_map_update_elem(fd, key, value, 0);
+  return bpf_map_update_elem(fd, key, value, BPF_NOEXIST);
 }
 
 static int check_kmod(void) {
@@ -478,10 +478,6 @@ int cmd_client_add(int argc, char **argv) {
     egress_peer_value.comment[sizeof(egress_peer_value.comment) - 1] = '\0';
   }
 
-  egress_peer_map_fd = try2(bpf_obj_get(EGRESS_PEER_MAP_PATH), _("bpf obj get: %s"), strret);
-  err = try2(set_egress_peer_map(egress_peer_map_fd, &egress_peer_key, &egress_peer_value), _("set_egress_peer_map: %s"),
-             strret);
-
   ingress_peer_key = (typeof(ingress_peer_key)) {
     .uid = uid,
   };
@@ -491,7 +487,24 @@ int cmd_client_add(int argc, char **argv) {
   ingress_peer_key.address = in6;
 
   ingress_peer_map_fd = try2(bpf_obj_get(INGRESS_PEER_MAP_PATH), _("bpf obj get: %s"), strret);
-  err = try2(set_ingress_peer_map(ingress_peer_map_fd, &ingress_peer_key, &ingress_peer_value), _("set_ingress_peer_map: %s"),
+  err                 = set_ingress_peer_map(ingress_peer_map_fd, &ingress_peer_key, &ingress_peer_value);
+  if (err) {
+    if (errno == EEXIST) {
+      char ipstr[INET6_ADDRSTRLEN], *uidstr = NULL;
+      try2(ipv6_ntop(ipstr, &in6), "ipv6_ntop: %s", strret);
+      try2(uid2string(uid, &uidstr, 0), "uid2string: %s", strret);
+      log_error("Unable to configure UID %s for address %s port %u because another port is already in use on this address",
+                uidstr, ipstr, port);
+      free(uidstr);
+    } else {
+      log_error(_("set_ingress_peer_map failed: %s"), strerror(errno));
+    }
+
+    goto err_cleanup;
+  }
+
+  egress_peer_map_fd = try2(bpf_obj_get(EGRESS_PEER_MAP_PATH), _("bpf obj get: %s"), strret);
+  err = try2(set_egress_peer_map(egress_peer_map_fd, &egress_peer_key, &egress_peer_value), _("set_egress_peer_map: %s"),
              strret);
 
   {
