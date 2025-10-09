@@ -20,6 +20,8 @@
 #include "tutuicmptunnel.debug.skel.h"
 #include "tutuicmptunnel.skel.h"
 
+#define HOMEPAGE_STR "https://github.com/hrimfaxi/" STR(PROJECT_NAME)
+
 #ifndef LIBBPF_VERSION_GEQ
 #if defined(LIBBPF_MAJOR_VERSION) && defined(LIBBPF_MINOR_VERSION)
 #define LIBBPF_VERSION_GEQ(major, minor)                                                                                       \
@@ -683,7 +685,6 @@ static int print_server_add_usage(int argc, char **argv) {
 int cmd_server_add(int argc, char **argv) {
   uint8_t     uid         = 0;
   const char *address     = NULL;
-  uint16_t    sport       = 0;
   uint16_t    port        = 0;
   uint16_t    icmp_id     = 0;
   bool        uid_set     = false;
@@ -715,7 +716,7 @@ int cmd_server_add(int argc, char **argv) {
       if (++i >= argc)
         goto usage;
 
-      try(parse_sport(argv[i], &sport));
+      log_warn("ignore obsolete sport keyword");
     } else if (matches(tok, "icmp-id") == 0) {
       if (++i >= argc)
         goto usage;
@@ -762,7 +763,6 @@ int cmd_server_add(int argc, char **argv) {
   user = (typeof(user)) {
     .address = client_addr,
     .icmp_id = htons(icmp_id),
-    .sport   = htons(sport),
     .dport   = htons(port),
   };
 
@@ -980,7 +980,7 @@ int cmd_status(int argc, char **argv) {
 
     build_type_map_fd = try2(bpf_obj_get(BUILD_TYPE_MAP_PATH), _("bpf_obj_get: build_type_map: %s"), strret);
     try2(get_build_type_map(build_type_map_fd, &build_type), _("get build type map: %s"), strret);
-    printf("tutuicmptunnel: Role: %s, BPF build type: %s, no-fixup: %s\n\n", cfg.is_server ? "Server" : "Client",
+    printf("%s: Role: %s, BPF build type: %s, no-fixup: %s\n\n", STR(PROJECT_NAME), cfg.is_server ? "Server" : "Client",
            build_type ? "Debug" : "Release", cfg.no_fixup ? "on" : "off");
   }
 
@@ -996,8 +996,8 @@ int cmd_status(int argc, char **argv) {
       char *uidstr = NULL;
       try2(uid2string(key, &uidstr, 0), "uid2string: %s", strret);
       printf("  %s, Address: %s, "
-             "Sport: %u, Dport: %u, ICMP: %u",
-             uidstr, ipstr, ntohs(value.sport), ntohs(value.dport), ntohs(value.icmp_id));
+             "Dport: %u, ICMP: %u",
+             uidstr, ipstr, ntohs(value.dport), ntohs(value.icmp_id));
       free(uidstr);
 
       print_comment((const char *) value.comment, sizeof(value.comment), 0);
@@ -1016,8 +1016,8 @@ int cmd_status(int argc, char **argv) {
           char *uidstr = NULL;
           try2(uid2string(value.uid, &uidstr, 0), "uid2string: %s", strret);
           printf("  Address: %s, SPort: %u, DPort: %u => "
-                 "%s, Age: %llu\n",
-                 ipstr, ntohs(key.sport), ntohs(key.dport), uidstr, value.age);
+                 "%s, Age: %llu, Client Sport: %u\n",
+                 ipstr, ntohs(key.sport), ntohs(key.dport), uidstr, value.age, ntohs(value.client_sport));
           free(uidstr);
         });
       }
@@ -1156,9 +1156,8 @@ int cmd_dump(int argc, char **argv) {
              "%s "
              "addr %s "
              "icmp-id %u "
-             "sport %u "
              "port %u",
-             uidstr, ipstr, ntohs(value.icmp_id), ntohs(value.sport), ntohs(value.dport));
+             uidstr, ipstr, ntohs(value.icmp_id), ntohs(value.dport));
       free(uidstr);
 
       print_comment((const char *) value.comment, sizeof(value.comment), 1);
@@ -1724,7 +1723,7 @@ int cmd_help(int argc, char **argv) {
 int cmd_version(int argc, char **argv) {
   (void) argc;
   (void) argv;
-  printf("tutuicmptunnel: %s\n", VERSION_STR);
+  printf("%s: %s (%s)\n", STR(PROJECT_NAME), VERSION_STR, HOMEPAGE_STR);
   return 0;
 }
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(tutuicmptunnel VERSION 1.3 LANGUAGES C)
+project(tutuicmptunnel VERSION 1.4 LANGUAGES C)
 
 if(NOT CMAKE_BUILD_TYPE)
   message(FATAL_ERROR "CMAKE_BUILD_TYPE is not set. Please set it to continue.\n"
