@@ -498,8 +498,8 @@ int cmd_client_add(int argc, char **argv) {
       } else {
         char ipstr[INET6_ADDRSTRLEN], *uidstr = NULL;
         try2(ipv6_ntop(ipstr, &in6), "ipv6_ntop: %s", strret);
-        try2(uid2string(uid, &uidstr, 0), "uid2string: %s", strret);
-        log_error("Unable to configure UID %s for address %s port %u because another port is already in use on this address",
+        try2(uid2string(uid, &uidstr, 1), "uid2string: %s", strret);
+        log_error("Unable to configure %s for address %s port %u because another port is already in use on this address",
                   uidstr, ipstr, port);
         free(uidstr);
         goto err_cleanup;
