@@ -25,6 +25,8 @@ typedef uint32_t __be32;
 #include <linux/types.h>
 #endif
 
+#define CSUM_MANGLED_0 ((__sum16)0xffff)
+
 enum {
   LINK_NONE,
   LINK_ETH,

@@ -1013,7 +1013,7 @@ static __always_inline void update_udp_cksum(struct udphdr *udp, __wsum pseudo_s
 
   // rfc768规定
   if (!udp->check)
-    udp->check = 0xffff;
+    udp->check = CSUM_MANGLED_0;
 }
 
 // Incoming packet handler (ICMP -> UDP)
