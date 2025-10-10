@@ -330,10 +330,7 @@ static __always_inline int ipv6_equal(const struct in6_addr *a, const struct in6
 #ifdef __mips__
   return __builtin_memcmp((void *) (volatile __u8 *) a, (const void *) (volatile __u8 *) b, sizeof(*a)) == 0;
 #else
-  const __u32 *pa = (const __u32 *) a->s6_addr32;
-  const __u32 *pb = (const __u32 *) b->s6_addr32;
-
-  return (pa[0] == pb[0]) & (pa[1] == pb[1]) & (pa[2] == pb[2]) & (pa[3] == pb[3]);
+  return __builtin_memcmp(a, b, sizeof(*a)) == 0;
 #endif
 }
 
