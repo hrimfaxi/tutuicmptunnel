@@ -188,7 +188,7 @@ static __always_inline __u32 get_unaligned(void *p) {
   bpf_probe_read_kernel(&val, sizeof(val), p);
   return val;
 #else
-  return *(u32 *) p;
+  return *(__u32 *) p;
 #endif
 }
 
