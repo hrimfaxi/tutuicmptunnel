@@ -976,10 +976,10 @@ err_cleanup:
 }
 
 static __always_inline int update_session_map(struct user_info *user, __u8 uid, __be16 icmp_seq) {
-  int err;
-  struct session_key    key = {.dport = user->dport, .sport = user->icmp_id, .address = user->address};
-  struct session_value *exist  = bpf_map_lookup_elem(&session_map, &key);
-  __u64 now = (bpf_ktime_get_ns() / NS_PER_SEC); // 当前时间（秒）
+  int                   err;
+  struct session_key    key   = {.dport = user->dport, .sport = user->icmp_id, .address = user->address};
+  struct session_value *exist = bpf_map_lookup_elem(&session_map, &key);
+  __u64                 now   = (bpf_ktime_get_ns() / NS_PER_SEC); // 当前时间（秒）
 
   if (exist) {
     bool client_sport_changed = exist->client_sport != icmp_seq;
@@ -999,8 +999,8 @@ static __always_inline int update_session_map(struct user_info *user, __u8 uid, 
   };
 
   err = bpf_map_update_elem(&session_map, &key, &value, BPF_ANY);
-  TUTU_LOG("update session_map: sport %5u, dport: %5u, age: %5u, client_sport: %5u, ret: %d", bpf_ntohs(key.sport), bpf_ntohs(key.dport),
-           value.age, bpf_ntohs(value.client_sport), err);
+  TUTU_LOG("update session_map: sport %5u, dport: %5u, age: %5u, client_sport: %5u, ret: %d", bpf_ntohs(key.sport),
+           bpf_ntohs(key.dport), value.age, bpf_ntohs(value.client_sport), err);
   return err;
 }
 
