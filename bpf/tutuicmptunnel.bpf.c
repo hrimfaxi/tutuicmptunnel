@@ -198,7 +198,7 @@ static __always_inline __u64 get_unaligned64(void *p) {
   bpf_probe_read_kernel(&val, sizeof(val), p);
   return val;
 #else
-  return *(u64 *) p;
+  return *(__u64 *) p;
 #endif
 }
 
