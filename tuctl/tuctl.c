@@ -928,6 +928,50 @@ static void print_comment(const char *comment, size_t comment_len, int dsl) {
   }
 }
 
+static int get_boot_seconds(__u64 *seconds) {
+  if (!seconds)
+    return -EINVAL;
+
+  struct timespec ts;
+
+#ifdef CLOCK_BOOTTIME
+  if (clock_gettime(CLOCK_BOOTTIME, &ts) == 0) {
+    if (ts.tv_sec < 0)
+      return -EFAULT;
+    *seconds = (__u64) ts.tv_sec;
+    return 0;
+  } else if (errno != EINVAL && errno != ENOTSUP) {
+    return -errno;
+  }
+#endif
+
+  // 2) 回退 CLOCK_MONOTONIC（不包含挂起）
+#ifdef CLOCK_MONOTONIC
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+    if (ts.tv_sec < 0)
+      return -EFAULT;
+    *seconds = (__u64) ts.tv_sec;
+    return 0;
+  }
+#endif
+
+  // 3) 最后回退到 /proc/uptime
+  FILE *f = fopen("/proc/uptime", "re");
+  if (f) {
+    double up      = 0.0;
+    int    scanned = fscanf(f, "%lf", &up);
+    fclose(f);
+    if (scanned == 1 && up >= 0.0) {
+      *seconds = (__u64) up;
+      return 0;
+    }
+
+    return -EIO;
+  }
+
+  return -errno;
+}
+
 int cmd_status(int argc, char **argv) {
   int config_map_fd       = -1;
   int build_type_map_fd   = -1;
@@ -1005,7 +1049,10 @@ int cmd_status(int argc, char **argv) {
     });
 
     if (debug) {
-      printf("\nSessions (max age: %u):\n", cfg.session_max_age);
+      __u64 boot = 0;
+
+      try2(get_boot_seconds(&boot), _("failed to get boot seconds: %s"), strret);
+      printf("\nSessions (max age: %u, current: %llu):\n", cfg.session_max_age, boot);
       session_map_fd = try2(bpf_obj_get(SESSION_MAP_PATH), _("bpf_obj_get: %s: %s"), SESSION_MAP_PATH, strret);
       {
         BPF_MAP_FOREACH(session_map_fd, struct session_key, struct session_value, key, value, {
