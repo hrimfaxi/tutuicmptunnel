@@ -209,6 +209,10 @@ static __always_inline __sum16 csum_fold(__wsum csum) {
   return (__sum16) ~sum;
 }
 
+static __always_inline __wsum csum_unfold(__sum16 n) {
+	return (__wsum)n;
+}
+
 static __always_inline __wsum csum_add(__wsum csum, __wsum addend) {
   __u32 res = (__u32) csum;
   res += (__u32) addend;
@@ -468,7 +472,7 @@ static __always_inline __wsum icmphdr_cksum(struct icmphdr *icmp) {
 
 // 从icmp检验和恢复udp负载的检验和, 支持icmpv6
 static __always_inline __wsum recover_payload_csum_from_icmp(struct icmphdr *icmp, struct ipv6hdr *ipv6, __u32 payload_len) {
-  __wsum payload_sum = ~icmp->checksum & 0xFFFF;
+  __wsum payload_sum = csum_unfold(~icmp->checksum);
   __wsum icmphdr_sum = icmphdr_cksum(icmp);
 
   // 将icmp检验和取反后，减去掉icmp头部检验和
