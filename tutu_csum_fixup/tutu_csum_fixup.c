@@ -141,8 +141,8 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
         ip6h   = ipv6_hdr(skb);
         icmp6h = (typeof(icmp6h)) (struct icmp6hdr *) (skb->data + l4_offset);
         // 计算 ICMPv6 校验和: 只算icmpv6伪头部，让硬件完成整个检验和计算
-        // 由于csum_ipv6_magic()结果是最终检验和，需要csum_unfold然后反转才得到icmpv6伪头部
-        icmp6h->icmp6_cksum = ~csum_unfold(csum_ipv6_magic(&ip6h->saddr, &ip6h->daddr, icmp_len, IPPROTO_ICMPV6, 0));
+        // 由于csum_ipv6_magic()结果是最终检验和，需要反转才得到icmpv6伪头部
+        icmp6h->icmp6_cksum = ~csum_ipv6_magic(&ip6h->saddr, &ip6h->daddr, icmp_len, IPPROTO_ICMPV6, 0);
         // 而skb->csum_offset应该指向icmpv6头部检验和位置
         skb->csum_offset = offsetof(struct icmp6hdr, icmp6_cksum);
       }
