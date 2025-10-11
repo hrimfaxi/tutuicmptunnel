@@ -210,7 +210,7 @@ static __always_inline __sum16 csum_fold(__wsum csum) {
 }
 
 static __always_inline __wsum csum_unfold(__sum16 n) {
-	return (__wsum)n;
+  return (__wsum) n;
 }
 
 static __always_inline __wsum csum_add(__wsum csum, __wsum addend) {
@@ -501,8 +501,16 @@ static __always_inline __wsum recovery_payload_csum_from_udp(struct udphdr *udp,
 }
 
 // 更新icmp检验和
-static __always_inline void update_icmp_cksum(struct icmphdr *icmp, struct udphdr *udp, struct ipv6hdr *ipv6,
-                                              __wsum udp_pseudo_sum) {
+static __always_inline void update_icmp_cksum(struct iphdr *ipv4, struct ipv6hdr *ipv6, struct icmphdr *icmp,
+                                              struct udphdr *udp) {
+  __wsum udp_pseudo_sum = 0;
+
+  if (ipv4) {
+    udp_pseudo_sum = udp_pseudoheader_sum(ipv4, udp);
+  } else if (ipv6) {
+    udp_pseudo_sum = udpv6_pseudoheader_sum(ipv6, udp);
+  }
+
   // 计算ICMP头部校验和
   __wsum csum        = icmphdr_cksum(icmp);
   __wsum payload_sum = recovery_payload_csum_from_udp(udp, udp_pseudo_sum);
@@ -898,16 +906,7 @@ int handle_egress(struct __sk_buff *skb) {
   }
 
   if (cfg->no_fixup) {
-    __wsum udp_pseudo_sum = 0;
-
-    if (ipv4) {
-      udp_pseudo_sum = udp_pseudoheader_sum(ipv4, udp);
-    } else if (ipv6) {
-      udp_pseudo_sum = udpv6_pseudoheader_sum(ipv6, udp);
-    }
-
-    // TUTU_LOG("pseudo sum: 0x%04x", bpf_ntohs(udp_pseudo_sum));
-    update_icmp_cksum(&icmp_hdr, udp, ipv6, udp_pseudo_sum);
+    update_icmp_cksum(ipv4, ipv6, &icmp_hdr, udp);
   }
 
   // TUTU_LOG("icmp hdr checksum: 0x%04x", bpf_ntohs(icmp_hdr.checksum);
@@ -1002,12 +1001,24 @@ static __always_inline int update_session_map(struct user_info *user, __u8 uid, 
 }
 
 // 更新udp检验和
-static __always_inline void update_udp_cksum(struct udphdr *udp, __wsum pseudo_sum, __wsum payload_sum) {
-  __wsum udp_hdr_sum = udp_header_sum(udp);
-  __wsum new_udp_sum = csum_add(pseudo_sum, udp_hdr_sum);
+static __always_inline void update_udp_cksum(struct iphdr *ipv4, struct ipv6hdr *ipv6, struct udphdr *udp, __wsum payload_sum) {
+  __wsum total_sum, pseudo_sum = 0;
 
-  new_udp_sum = csum_add(new_udp_sum, payload_sum);
-  udp->check  = csum_fold(new_udp_sum);
+  // 先把 UDP头部的检验和和负载的检验和加在一起
+  total_sum = csum_add(udp_header_sum(udp), payload_sum);
+
+  if (ipv4) {
+    // 加上 IPv4 伪头部
+    pseudo_sum = udp_pseudoheader_sum(ipv4, udp);
+  } else if (ipv6) {
+    // 加上 IPv6 伪头部
+    pseudo_sum = udpv6_pseudoheader_sum(ipv6, udp);
+  } else {
+    TUTU_LOG("neither ipv4 nor ipv6 packet");
+  }
+
+  // 折叠
+  udp->check = csum_fold(csum_add(total_sum, pseudo_sum));
 
   // rfc768规定
   if (!udp->check)
@@ -1218,15 +1229,7 @@ int handle_ingress(struct __sk_buff *skb) {
     TUTU_LOG("payload sum: %04x", payload_sum);
 #endif
 
-    __wsum udp_pseudo_sum = 0;
-
-    if (ipv4) {
-      udp_pseudo_sum = udp_pseudoheader_sum(ipv4, &udp_hdr);
-    } else if (ipv6) {
-      udp_pseudo_sum = udpv6_pseudoheader_sum(ipv6, &udp_hdr);
-    }
-
-    update_udp_cksum(&udp_hdr, udp_pseudo_sum, payload_sum);
+    update_udp_cksum(ipv4, ipv6, &udp_hdr, payload_sum);
   }
 
   // Replace ICMP header with UDP header
