@@ -294,14 +294,7 @@ static __always_inline __wsum icmpv6_pseudoheader_sum(struct ipv6hdr *ip6h, __u3
 
 // 结果为大端
 static __always_inline __wsum udp_header_sum(struct udphdr *udp) {
-  __wsum sum;
-
-  sum = udp->source;
-  sum += udp->dest;
-  sum += udp->len;
-  // 检验和字段视为0，不做加法
-
-  return sum;
+  return udp->source + udp->dest + udp->len;
 }
 
 #define s6_addr   in6_u.u6_addr8
