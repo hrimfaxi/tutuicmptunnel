@@ -71,7 +71,7 @@ struct {
   __uint(type, BPF_MAP_TYPE_LRU_HASH);
   __type(key, struct session_key);
   __type(value, struct session_value); // UID
-  __uint(max_entries, 1024);
+  __uint(max_entries, 16384);
 } session_map SEC(".maps");
 
 // Map to store users (for server mode)
