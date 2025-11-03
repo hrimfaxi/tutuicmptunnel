@@ -199,4 +199,4 @@
 
 #define ARRAY_SIZE(n) (sizeof(n) / sizeof(n[0]))
 
-// vim: set sw=2 expandtab :
+// vim: set sw=2 ts=2 expandtab:

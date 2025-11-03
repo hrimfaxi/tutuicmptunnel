@@ -157,10 +157,7 @@ retry:;
   size_t  pad_len = randombytes_uniform(256);
   memset(pad, '#', pad_len);
 
-  size_t cmd_len = (size_t) try2(snprintf(cmd, sizeof(cmd), "%s", a.script), "snprintf: %d", _ret);
-  if (cmd_len >= sizeof(cmd)) {
-    cmd_len = sizeof(cmd) - 1;
-  }
+  size_t cmd_len = (size_t) try2(scnprintf(cmd, sizeof(cmd), "%s", a.script), "scnprintf: %d", _ret);
   if (cmd_len + pad_len > sizeof(cmd) - 1) {
     pad_len = sizeof(cmd) - 1 - cmd_len;
   }

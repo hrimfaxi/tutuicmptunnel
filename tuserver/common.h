@@ -93,4 +93,6 @@ typedef struct {
 void rl_init(rate_limiter_t *rl);
 int  rl_allow(rate_limiter_t *rl, const struct sockaddr_storage *sa);
 
-// vim: set sw=2 expandtab :
+size_t scnprintf(char *buf, size_t size, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
+
+// vim: set sw=2 ts=2 expandtab:

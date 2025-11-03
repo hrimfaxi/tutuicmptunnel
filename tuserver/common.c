@@ -22,7 +22,7 @@ int addr_to_str(const struct sockaddr_storage *addr, char *out, size_t len) {
                          (addr->ss_family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), hbuf,
                          sizeof(hbuf), sbuf, sizeof(sbuf), NI_NUMERICHOST | NI_NUMERICSERV),
              "getnameinfo: %s", gai_strerror(_ret));
-  err = try2(snprintf(out, len, "[%s]:%s", hbuf, sbuf));
+  err = try2(scnprintf(out, len, "[%s]:%s", hbuf, sbuf));
 
 err_cleanup:
   return err;
@@ -246,4 +246,32 @@ err_cleanup:
   return err;
 }
 
-// vim: set sw=2 expandtab :
+// 返回实际写入的字节数，不包括结尾的\0字符.
+// size>0时总是使用NUL结束字符串
+// 如果size==0，不写入并返回0
+// 写入最多size-1个字符，保证\0结尾
+size_t scnprintf(char *buf, size_t size, const char *fmt, ...) {
+  int     n;
+  va_list ap;
+
+  if (size == 0) {
+    return 0;
+  }
+
+  va_start(ap, fmt);
+  n = vsnprintf(buf, size, fmt, ap);
+  va_end(ap);
+
+  if (n < 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+
+  if ((size_t) n >= size) {
+    return size - 1;
+  } else {
+    return (size_t) n;
+  }
+}
+
+// vim: set sw=2 ts=2 expandtab:
