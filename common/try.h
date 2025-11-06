@@ -195,7 +195,8 @@
 #define try_p_pass(x) try_p_ret(x, XDP_PASS)
 #define try_p_drop(x) try_p_ret(x, XDP_DROP)
 
-#define strret strerror(-_ret)
+#define strret   strerror(-_ret)
+#define strerrno strerror(errno)
 
 #define ARRAY_SIZE(n) (sizeof(n) / sizeof(n[0]))
 
