@@ -304,4 +304,32 @@ size_t scnprintf(char *buf, size_t size, const char *fmt, ...) {
   }
 }
 
+/* 返回 0 表示成功；若被信号中断，会自动继续睡到足时 */
+int sleep_ms(unsigned int ms) {
+  struct timespec req, rem;
+  req.tv_sec  = ms / 1000;
+  req.tv_nsec = (long) (ms % 1000) * 1000000L;
+
+#if defined(CLOCK_MONOTONIC)
+  /* 使用相对睡眠 */
+  while (1) {
+    int r = clock_nanosleep(CLOCK_MONOTONIC, 0, &req, &rem);
+    if (r == 0)
+      return 0;
+    if (r == EINTR) {
+      req = rem;
+      continue;
+    }
+    errno = r; /* clock_nanosleep 返回错误码而不是设 errno */
+    return -1;
+  }
+#else
+  /* 回退到 nanosleep */
+  while (nanosleep(&req, &rem) == -1 && errno == EINTR) {
+    req = rem;
+  }
+  return 0;
+#endif
+}
+
 // vim: set sw=2 ts=2 expandtab:
