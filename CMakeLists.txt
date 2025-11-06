@@ -11,6 +11,7 @@ set(CMAKE_C_STANDARD 11)
 add_compile_options(-Wall -Wextra -Wno-error)
 add_definitions(-D_GNU_SOURCE=1 -DPROJECT_NAME=${CMAKE_PROJECT_NAME} -DINSTALL_PREFIX_DIR=${CMAKE_INSTALL_PREFIX})
 include_directories(common)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_compile_definitions(
   VERSION_MAJOR=${tutuicmptunnel_VERSION_MAJOR}
   VERSION_MINOR=${tutuicmptunnel_VERSION_MINOR}
@@ -19,7 +20,10 @@ add_compile_definitions(
 
 option(USE_SYSTEM_LIBBPF_BPFTOOL "Use system libbpf and bpftool" OFF)
 message(STATUS "Using system libbpf&bpftool=${USE_SYSTEM_LIBBPF_BPFTOOL}")
-option(USE_LLVM_FOR_KMOD 1)
+# 默认使用libsodium而不是tucrypto
+option(USE_TUCRYPTO "Enable builtin crypto instead of libsodium" OFF)
+message(STATUS "Use tucrypto: ${USE_TUCRYPTO}")
+option(USE_LLVM_FOR_KMOD "Enable llvm for kmodule building" OFF)
 option(DISABLE_BPF_TIMER 0)
 message(STATUS "Disable BPF timer=${DISABLE_BPF_TIMER}")
 option(ENABLE_HARDEN_MODE "Enable security hardening compiler and linker flags" OFF)
@@ -214,13 +218,86 @@ add_dependencies(tuctl build_bpf)
 find_path(SODIUM_INCLUDE_DIR sodium.h PATH_SUFFIXES sodium)
 find_library(SODIUM_LIBRARY sodium)
 
-# 有libsodium就编译tuserver
-if(SODIUM_INCLUDE_DIR AND SODIUM_LIBRARY)
-  message(STATUS "Found libsodium - building tuserver")
-  add_subdirectory(tuserver)
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(
+  SODIUM
+  REQUIRED_VARS SODIUM_INCLUDE_DIR SODIUM_LIBRARY
+  FAIL_MESSAGE "Could not find libsodium."
+)
+
+if (SODIUM_FOUND)
+  if (USE_TUCRYPTO)
+    message(WARNING "libsodium is found, but overridden by tucrypto (USE_TUCRYPTO=ON)")
+    set(USE_TUCRYPTO 1)
+    set(USE_SODIUM 0)
+  else()
+    message(STATUS "libsodium found and in use")
+    set(USE_TUCRYPTO 0)
+    set(USE_SODIUM 1)
+  endif()
 else()
-  message(STATUS "libsodium not found - skipping tuserver")
+  # 找不到 libsodium，切换为 tucrypto
+  message(WARNING "libsodium not found; switching to tucrypto")
+  set(USE_TUCRYPTO 1)
+  set(USE_SODIUM 0)
 endif()
+
+if(USE_TUCRYPTO)
+  include(CheckCSourceCompiles)
+
+  # poly1305需要检查int128可用性
+  # 检测 __int128 可用（GCC/Clang 通常支持，MSVC 不支持）
+  set(CODE_HAS_INT128 "
+  #include <stdint.h>
+  int main(void) {
+    __int128 a = 0;
+    unsigned __int128 b = 0;
+    (void)a; (void)b;
+    return 0;
+  }")
+  check_c_source_compiles("${CODE_HAS_INT128}" HAVE___INT128)
+
+  # 检测 MSVC 64-bit
+  if (MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(HAVE_MSVC_64BIT 1)
+  else()
+    set(HAVE_MSVC_64BIT 0)
+  endif()
+
+  # 检测 GCC/Clang 版本与 64-bit 目标（如需保持与你原逻辑一致）
+  set(HAVE_GCC_4_4_64BIT 0)
+  if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+      if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+        if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 4.4)
+          set(HAVE_GCC_4_4_64BIT 1)
+        endif()
+      else()
+        set(HAVE_GCC_4_4_64BIT 1)
+      endif()
+    endif()
+  endif()
+
+  if (HAVE___INT128 OR HAVE_MSVC_64BIT OR HAVE_GCC_4_4_64BIT)
+    set(POLY1305_HAVE_FAST_64BIT 1)
+  else()
+    set(POLY1305_HAVE_FAST_64BIT 0)
+  endif()
+
+  include(CheckIncludeFile)
+  check_include_file(sys/random.h HAVE_SYS_RANDOM_H)
+
+  add_subdirectory(tucrypto)
+endif()
+
+# 生成配置头
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/tucrypto_config.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/tucrypto_config.h
+  @ONLY
+)
+
+add_subdirectory(tuserver)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   set(CMAKE_INSTALL_DO_STRIP ON)

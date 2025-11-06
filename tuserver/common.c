@@ -1,9 +1,11 @@
+#include "../tucrypto/tucrypto.h"
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <sodium.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <time.h>
@@ -28,11 +30,21 @@ err_cleanup:
   return err;
 }
 
-static size_t pwhash_memlimit = crypto_pwhash_MEMLIMIT_INTERACTIVE;
+static size_t pwhash_memlimit = CRYPTO_PWHASH_ARGON2ID_MEMLIMIT_INTERACTIVE;
 
 int psk2key(const char *psk, const uint8_t *salt, uint8_t *key) {
+#ifdef USE_TUCRYPTO
+  if (!psk || !salt || !key)
+    return -1;
+
+  // Argon2id 原始哈希输出
+  return argon2id_hash_raw(2U, pwhash_memlimit / 1024U, 1, psk, strlen(psk), salt, SALT_LEN, key, KEYB);
+#elif defined(USE_SODIUM)
   return crypto_pwhash(key, KEYB, psk, strlen(psk), salt, crypto_pwhash_OPSLIMIT_INTERACTIVE, pwhash_memlimit,
                        crypto_pwhash_ALG_ARGON2ID13);
+#else
+#error Invalid configuration
+#endif
 }
 
 void setup_pwhash_memlimit(void) {
@@ -111,7 +123,7 @@ int replay_check(struct replay_window *rw, time_t ts, const uint8_t nonce[NONCE_
       continue;
     }
     // 查重
-    if (e->ts == ts && !memcmp(e->nonce, nonce, NONCE_LEN)) {
+    if (e->ts == ts && !tucrypto_memcmp(e->nonce, nonce, NONCE_LEN)) {
       return 0;
     }
   }
@@ -157,15 +169,25 @@ int encrypt_and_send_packet(int sock, const struct sockaddr *cli, socklen_t clen
   uint8_t *nonce = ts_b + TS_LEN;
   uint8_t *ct    = nonce + NONCE_LEN;
 
-  randombytes_buf(salt, SALT_LEN);
+  tucrypto_randombytes_buf(salt, SALT_LEN);
   uint64_t ts_resp = htobe64((uint64_t) ts);
   memcpy(ts_b, &ts_resp, TS_LEN);
-  randombytes_buf(nonce, NONCE_LEN);
+  tucrypto_randombytes_buf(nonce, NONCE_LEN);
 
   try2(psk2key(psk, salt, key), "derive key failed: %d", _ret);
+#ifdef USE_TUCRYPTO
+  size_t ct_len_t = (size_t) ct_len;
+  try2(tucrypto_crypto_aead_xchacha20poly1305_ietf_encrypt(ct, &ct_len_t, (const uint8_t *) payload, payload_len, salt,
+                                                           SALT_LEN + TS_LEN, nonce, key),
+       "encryption failed: %d", _ret);
+  ct_len = (unsigned long long) ct_len_t;
+#elif defined(USE_SODIUM)
   try2(crypto_aead_xchacha20poly1305_ietf_encrypt(ct, &ct_len, (const uint8_t *) payload, payload_len, salt, SALT_LEN + TS_LEN,
                                                   NULL, nonce, key),
        "encryption failed: %d", _ret);
+#else
+#error Invalid configuration
+#endif
   try2(sendto(sock, packet, packet_len, 0, cli, clen), "sendto: %s", strret);
 
   err = replay_add(rwin, ts, nonce);
@@ -181,7 +203,7 @@ int encrypt_and_send_packet(int sock, const struct sockaddr *cli, socklen_t clen
   err = 0;
 err_cleanup:
   free(packet);
-  sodium_memzero(key, KEYB);
+  tucrypto_memzero(key, KEYB);
   return err;
 }
 
@@ -226,7 +248,15 @@ int decrypt_and_validate_packet(uint8_t *pt_out, unsigned long long *pt_len_out,
 
   try2(psk2key(psk, salt, key), "derive key failed: %d", _ret);
 
+#ifdef USE_TUCRYPTO
+  size_t pt_len_t = 0;
+  err = tucrypto_crypto_aead_xchacha20poly1305_ietf_decrypt(pt_out, &pt_len_t, ct, ct_len, salt, SALT_LEN + TS_LEN, nonce, key);
+  *pt_len_out = (unsigned long long) pt_len_t;
+#elif defined(USE_SODIUM)
   err = crypto_aead_xchacha20poly1305_ietf_decrypt(pt_out, pt_len_out, NULL, ct, ct_len, salt, SALT_LEN + TS_LEN, nonce, key);
+#else
+#error Invalid configuration
+#endif
   if (err) {
     try2(addr_to_str(cli, abuf, sizeof(abuf)));
     log_error("drop: decrypt/auth fail from %s", abuf);
@@ -242,7 +272,7 @@ int decrypt_and_validate_packet(uint8_t *pt_out, unsigned long long *pt_len_out,
   }
 
 err_cleanup:
-  sodium_memzero(key, KEYB);
+  tucrypto_memzero(key, KEYB);
   return err;
 }
 
