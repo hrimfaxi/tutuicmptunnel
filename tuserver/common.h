@@ -96,4 +96,6 @@ int  rl_allow(rate_limiter_t *rl, const struct sockaddr_storage *sa);
 
 size_t scnprintf(char *buf, size_t size, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
 
+int sleep_ms(unsigned int ms);
+
 // vim: set sw=2 expandtab :

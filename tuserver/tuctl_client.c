@@ -198,7 +198,7 @@ retry:;
       // 超时
       log_error("recvfrom timeout");
       if (retries++ < a.max_retries) {
-        sleep(1);
+        sleep_ms(100);
         log_info("performing retries: %u / %u", retries, a.max_retries);
         close(sock);
         sock = -1;
