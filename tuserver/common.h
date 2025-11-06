@@ -1,21 +1,22 @@
 #pragma once
 
+#include <endian.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/time.h>
+#include <time.h>
 
+#include "../tucrypto/tucrypto.h"
 #include "list.h"
-#include "sodium.h"
 
 #define _STR(x) #x
 #define STR(x)  _STR(x)
 
-#define SALT_LEN    16
-#define TS_LEN      8
-#define KEYB        crypto_aead_xchacha20poly1305_ietf_KEYBYTES
-#define NONCE_LEN   crypto_aead_xchacha20poly1305_ietf_NPUBBYTES
-#define TAG         crypto_aead_xchacha20poly1305_ietf_ABYTES
+#define SALT_LEN 16
+#define TS_LEN   8
+
 #define MIN_LEN     (SALT_LEN + TS_LEN + NONCE_LEN + TAG) // salt+ts+nonce+tag
 #define MAX_CT_SIZE 1444
 #define MAX_PT_SIZE (MAX_CT_SIZE - MIN_LEN)
@@ -95,4 +96,4 @@ int  rl_allow(rate_limiter_t *rl, const struct sockaddr_storage *sa);
 
 size_t scnprintf(char *buf, size_t size, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
 
-// vim: set sw=2 ts=2 expandtab:
+// vim: set sw=2 expandtab :

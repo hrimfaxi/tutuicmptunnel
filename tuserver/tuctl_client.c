@@ -1,13 +1,15 @@
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "../tucrypto/tucrypto.h"
 #include "common.h"
 #include "log.h"
 #include "parser.h"
 #include "read_script.h"
 #include "resolve.h"
-#include "sodium.h"
+
 #include "try.h"
 
 #define DEFAULT_SERVER "127.0.0.1"
@@ -145,7 +147,9 @@ int main(int argc, char **argv) {
 
   setup_pwhash_memlimit();
 
+#ifdef USE_SODIUM
   try2(sodium_init(), "sodium initialize failed: %d", _ret);
+#endif
   try2(parse_dsl_args(argc, argv, &a));
 
   replay_window_init(&rwin, a.window, replay_max);
@@ -154,7 +158,7 @@ int main(int argc, char **argv) {
   uint16_t retries = 0;
 retry:;
   uint8_t pad[256];
-  size_t  pad_len = randombytes_uniform(256);
+  size_t  pad_len = tucrypto_randombytes_uniform(256);
   memset(pad, '#', pad_len);
 
   size_t cmd_len = (size_t) try2(scnprintf(cmd, sizeof(cmd), "%s", a.script), "scnprintf: %d", _ret);

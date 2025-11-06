@@ -2,13 +2,14 @@
 #include <getopt.h>
 #include <inttypes.h>
 #include <netdb.h>
-#include <sodium.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
+#include "../tucrypto/tucrypto.h"
 #include "common.h"
 #include "list.h"
 #include "log.h"
@@ -246,7 +247,9 @@ int main(int argc, char **argv) {
 
   setup_pwhash_memlimit();
 
+#ifdef USE_SODIUM
   try2(sodium_init(), "libsodium init failed: %s", "unknown error");
+#endif
   try2(parse_arguments(argc, argv, &bind_addr, &port, &psk, &window, &replay_max));
   wipe_argv_psk(argc, argv, psk);
 
@@ -310,7 +313,7 @@ int main(int argc, char **argv) {
     // Add random padding to response to obscure its length
     size_t padding_len;
     if (resp_len < sizeof(resp) - 2) { // Need space for padding and null terminator
-      padding_len = randombytes_uniform(256);
+      padding_len = tucrypto_randombytes_uniform(256);
       if (resp_len + padding_len >= sizeof(resp)) {
         padding_len = sizeof(resp) - resp_len - 1;
       }
