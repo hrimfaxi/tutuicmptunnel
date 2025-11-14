@@ -304,6 +304,10 @@ configure_file(
 
 add_subdirectory(tuserver)
 
+if (WIN32)
+  add_subdirectory(win32)
+endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   set(CMAKE_INSTALL_DO_STRIP ON)
 endif()
