@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -7,15 +8,18 @@
 #include "try.h"
 #include "tuparser.h"
 
-int ftello_safe(FILE *stream, off_t *offset) {
-  off_t pos = ftello(stream);
-
+int64_t file_tell64(FILE *stream) {
+#ifdef _WIN32
+  __int64 pos = _ftelli64(stream);
   if (pos < 0)
     return -1;
-
-  *offset = pos;
-
-  return 0;
+  return (int64_t) pos;
+#else
+  off_t pos = ftello(stream);
+  if (pos < 0)
+    return -1;
+  return (int64_t) pos;
+#endif
 }
 
 int fread_safe(void *ptr, size_t size, size_t nmemb, FILE *stream, size_t *read) {
@@ -36,12 +40,12 @@ out:
 }
 
 int read_script(const char *path, char **out, size_t *out_len) {
-  FILE  *fp   = NULL;
-  char  *buf  = NULL;
-  int    err  = -1;
-  size_t n    = 0;
-  size_t size = 0;
-  off_t  file_size;
+  FILE   *fp   = NULL;
+  char   *buf  = NULL;
+  int     err  = -1;
+  size_t  n    = 0;
+  size_t  size = 0;
+  int64_t file_size;
 
   if (!strcmp(path, "-")) {
     // 动态读stdin
@@ -68,13 +72,12 @@ int read_script(const char *path, char **out, size_t *out_len) {
 
   fp = try2_p(fopen(path, "rb"), "fopen: %s: %s", path, strret);
   try2(fseek(fp, 0, SEEK_END), "fseek: %s", strret);
-  try2(ftello_safe(fp, &file_size), "ftello: %s", strret);
-  rewind(fp);
-
-  if (file_size < 0 || file_size > (off_t) (SIZE_MAX - 1)) {
+  file_size = file_tell64(fp);
+  if (file_size < 0 || file_size > INT32_MAX) {
     err = -EOVERFLOW;
     goto err_cleanup;
   }
+  rewind(fp);
 
   size = (size_t) file_size;
   buf  = try2_p(malloc(size + 1), "malloc failed");
@@ -89,7 +92,7 @@ int read_script(const char *path, char **out, size_t *out_len) {
 
   *out = buf;
   if (out_len)
-    *out_len = size;
+    *out_len = n;
   err = 0;
 
 err_cleanup:

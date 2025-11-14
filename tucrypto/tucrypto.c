@@ -9,6 +9,16 @@
 #include <string.h>
 #include <time.h>
 
+#ifdef _WIN32
+#include <windows.h>
+
+#include <winbase.h>
+
+static inline void explicit_bzero(void *p, size_t n) {
+  SecureZeroMemory(p, n);
+}
+#endif
+
 void tucrypto_randombytes_buf(void *buf, const size_t nbytes) {
   get_random_bytes(buf, nbytes);
 }

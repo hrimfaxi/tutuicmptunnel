@@ -1,17 +1,14 @@
 #include "../tucrypto/tucrypto.h"
 
-#include <arpa/inet.h>
 #include <errno.h>
-#include <netdb.h>
-#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <time.h>
 
 #include "common.h"
 #include "log.h"
+#include "network.h"
 #include "try.h"
 #include "tuparser.h"
 
@@ -188,7 +185,17 @@ int encrypt_and_send_packet(int sock, const struct sockaddr *cli, socklen_t clen
 #else
 #error Invalid configuration
 #endif
+
+#ifdef _WIN32
+  err = sendto(sock, (void *) packet, packet_len, 0, cli, clen);
+
+  if (err == SOCKET_ERROR) {
+    log_error("sendto: WSA error=%d", WSAGetLastError());
+    goto err_cleanup;
+  }
+#else
   try2(sendto(sock, packet, packet_len, 0, cli, clen), "sendto: %s", strret);
+#endif
 
   err = replay_add(rwin, ts, nonce);
   if (err) {
