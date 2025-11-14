@@ -142,6 +142,43 @@ struct {
 #define IPPROTO_DSTOPTS  60
 #define IPPROTO_MH       135
 
+static __always_inline int bpf_memcmp(const void *s1, const void *s2, size_t n) {
+#if defined(__clang_major__) && __clang_major__ >= 15
+  return __builtin_memcmp(s1, s2, n);
+#else
+  const __u8 *p1 = (typeof(p1)) s1;
+  const __u8 *p2 = (typeof(p2)) s2;
+
+#pragma unroll
+  for (size_t i = 0; i < n; i++) {
+    if (p1[i] != p2[i]) {
+      return (int) p1[i] - (int) p2[i];
+    }
+  }
+  return 0;
+#endif
+}
+
+#ifdef __mips__
+static __always_inline int bpf_volatile_memcmp(const volatile void *s1, const volatile void *s2, size_t n) {
+  const volatile __u8 *p1 = (const volatile __u8 *) s1;
+  const volatile __u8 *p2 = (const volatile __u8 *) s2;
+
+#pragma unroll
+  for (size_t i = 0; i < n; i++) {
+    __u8 a = p1[i];
+    __u8 b = p2[i];
+    if (a != b)
+      return (int) a - (int) b;
+  }
+  return 0;
+}
+#else
+static __always_inline int bpf_volatile_memcmp(const volatile void *s1, const volatile void *s2, size_t n) {
+  return __builtin_memcmp((const void *) s1, (const void *) s2, n);
+}
+#endif
+
 static __always_inline void *skb_data_end(const struct __sk_buff *ctx) {
   void *data_end;
   asm volatile("%[res] = *(u32 *)(%[base] + %[offset])"
@@ -325,9 +362,9 @@ static __always_inline void ipv6_copy(struct in6_addr *dst, const struct in6_add
 
 static __always_inline int ipv6_equal(const struct in6_addr *a, const struct in6_addr *b) {
 #ifdef __mips__
-  return __builtin_memcmp((void *) (volatile __u8 *) a, (const void *) (volatile __u8 *) b, sizeof(*a)) == 0;
+  return bpf_volatile_memcmp((const volatile void *) a, (const volatile void *) b, sizeof(*a)) == 0;
 #else
-  return __builtin_memcmp(a, b, sizeof(*a)) == 0;
+  return bpf_memcmp(a, b, sizeof(*a)) == 0;
 #endif
 }
 
@@ -895,6 +932,8 @@ int handle_egress(struct __sk_buff *skb) {
 
   // debug_hexdump_8("old_udp", &old_udp);
   // debug_hexdump_8("icmp_hdr", &icmp_hdr);
+  (void) bpf_volatile_memcmp;
+  (void) bpf_memcmp;
   (void) debug_hexdump_8;
   (void) debug_hexdump_4;
   (void) dump_skb;
