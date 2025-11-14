@@ -18,10 +18,10 @@ void log_any(int level, const char *fmt, ...) {
   if (log_verbosity >= level) {
     fprintf(stderr, "%s%s " RESET, log_prefixes[level][0], gettext(log_prefixes[level][1]));
     if (level >= LOG_TRACE)
-      fprintf(stderr, GRAY);
+      fputs(GRAY, stderr);
     vfprintf(stderr, fmt, ap);
     if (level >= LOG_TRACE)
-      fprintf(stderr, RESET);
+      fputs(RESET, stderr);
     fprintf(stderr, "\n");
   }
   va_end(ap);

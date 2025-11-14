@@ -17,6 +17,15 @@ extern int         log_verbosity;
 #define gettext(text) _(text)
 #define N_(text)      text
 
+#ifdef WIN32
+#define RED    ""
+#define YELLOW ""
+#define GREEN  ""
+#define BLUE   ""
+#define GRAY   ""
+#define BOLD   ""
+#define RESET  ""
+#else
 #define RED    "\x1B[31m"
 #define YELLOW "\x1B[33m"
 #define GREEN  "\x1B[32m"
@@ -24,6 +33,7 @@ extern int         log_verbosity;
 #define GRAY   "\x1B[90m"
 #define BOLD   "\x1B[1m"
 #define RESET  "\x1B[0m"
+#endif
 
 void log_any(int level, const char *fmt, ...);
 

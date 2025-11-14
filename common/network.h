@@ -17,6 +17,8 @@
 #define bswap64 _byteswap_uint64
 #endif
 
+#include <stdint.h>
+
 static inline uint64_t htobe64(uint64_t x) {
   return bswap64(x);
 }
