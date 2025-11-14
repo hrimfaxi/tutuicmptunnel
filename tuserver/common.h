@@ -1,7 +1,5 @@
 #pragma once
 
-#include <endian.h>
-#include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -10,6 +8,7 @@
 
 #include "../tucrypto/tucrypto.h"
 #include "list.h"
+#include "network.h"
 
 #define _STR(x) #x
 #define STR(x)  _STR(x)

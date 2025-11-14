@@ -133,6 +133,28 @@ static void free_args(args_t *a) {
   free(a->server);
 }
 
+static int set_sock_timeout(int sock, int timeout_sec) {
+  const char *blob     = NULL;
+  size_t      blob_len = 0;
+
+#ifdef _WIN32
+  DWORD timeout_ms = (DWORD) timeout_sec * 1000;
+
+  blob     = (const char *) &timeout_ms;
+  blob_len = sizeof(timeout_ms);
+#else
+  struct timeval tv = {
+    .tv_sec  = timeout_sec,
+    .tv_usec = 0,
+  };
+
+  blob     = (const char *) &tv;
+  blob_len = sizeof(tv);
+#endif
+
+  return setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, blob, blob_len);
+}
+
 int main(int argc, char **argv) {
   int     err = 0, sock = -1;
   args_t  a          = {};
@@ -145,6 +167,10 @@ int main(int argc, char **argv) {
   struct replay_window rwin;
   int                  rwin_inited = 0;
 
+#ifdef _WIN32
+  WSADATA wsa;
+  try2(WSAStartup(MAKEWORD(2, 2), &wsa), "WSAStartup failed: %d", _ret);
+#endif
   setup_pwhash_memlimit();
 
 #ifdef USE_SODIUM
@@ -171,6 +197,11 @@ retry:;
 
   sock = try2(socket(AF_INET6, SOCK_DGRAM, 0), "socket: %s", strret);
 
+#ifdef _WIN32
+  int off = 0; // 0 = 允许 IPv4-mapped (dual-stack)
+  setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (const char *) &off, sizeof(off));
+#endif
+
   struct sockaddr_in6 dst = {
     .sin6_family = AF_INET6,
     .sin6_port   = htons(a.server_port),
@@ -181,20 +212,20 @@ retry:;
                                &packet_len),
        "encrypt_and_send_packet: %s", strret);
   log_info("sent %zu bytes to %s:%d", packet_len, a.server, a.server_port);
-
-  struct timeval tv;
-  tv.tv_sec  = timeout;
-  tv.tv_usec = 0;
-
-  try2(setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)), "setsockopt: %s", strerror(errno));
+  try2(set_sock_timeout(sock, timeout), "set_sock_timeout: %s", strret);
 
   uint8_t                 buf[MAX_CT_SIZE];
   struct sockaddr_storage cli;
   socklen_t               clen = sizeof(cli);
-  ssize_t                 len  = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *) &cli, &clen);
+  ssize_t                 len  = recvfrom(sock, (void *) buf, sizeof(buf), 0, (struct sockaddr *) &cli, &clen);
 
   if (len < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+#ifdef _WIN32
+    if (WSAGetLastError() == WSAETIMEDOUT)
+#else
+    if (errno == EAGAIN || errno == EWOULDBLOCK)
+#endif
+    {
       // 超时
       log_error("recvfrom timeout");
       if (retries++ < a.max_retries) {
@@ -206,7 +237,11 @@ retry:;
       }
     } else {
       // 其他错误
+#ifdef _WIN32
+      log_error("recvfrom WSA error=%d", WSAGetLastError());
+#else
       log_error("recvfrom error: %s", strerror(errno));
+#endif
     }
 
     err = -1;
@@ -238,6 +273,9 @@ err_cleanup:
   free_args(&a);
   if (rwin_inited)
     replay_window_free(&rwin);
+#ifdef _WIN32
+  WSACleanup();
+#endif
   return err;
 }
 

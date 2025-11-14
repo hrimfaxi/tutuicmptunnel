@@ -21,17 +21,23 @@ if (USE_SODIUM)
   list(APPEND LIBS ${SODIUM_LIBRARY})
 endif()
 
+if(WIN32)
+  list(APPEND LIBS bcrypt ws2_32)
+endif()
+
 target_link_libraries(tuctl_client ${LIBS})
 install(TARGETS tuctl_client RUNTIME DESTINATION bin)
 
-set(SERVER_SOURCES
-  tuctl_server.c
-  ratelimiter.c
-  common.c
-  log.c
-)
-add_executable(tuctl_server ${SERVER_SOURCES})
-target_link_libraries(tuctl_server ${LIBS})
-install(TARGETS tuctl_server RUNTIME DESTINATION bin)
+if (NOT WIN32)
+  set(SERVER_SOURCES
+    tuctl_server.c
+    ratelimiter.c
+    common.c
+    log.c
+  )
+  add_executable(tuctl_server ${SERVER_SOURCES})
+  target_link_libraries(tuctl_server ${LIBS})
+  install(TARGETS tuctl_server RUNTIME DESTINATION bin)
+endif()
 
 # vim: set sw=2 ts=2 expandtab:

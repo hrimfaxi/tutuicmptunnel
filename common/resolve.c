@@ -1,10 +1,9 @@
-#include <arpa/inet.h>
 #include <errno.h>
-#include <linux/types.h>
-#include <netdb.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "log.h"
+#include "network.h"
 #include "resolve.h"
 #include "try.h"
 
