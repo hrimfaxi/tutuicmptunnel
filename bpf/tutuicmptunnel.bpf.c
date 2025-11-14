@@ -60,11 +60,7 @@
   } while (0)
 #endif
 
-#define ICMP_ECHO_REQUEST 8
-#define ICMP_ECHO_REPLY   0
-
-#define ICMP6_ECHO_REQUEST 128
-#define ICMP6_ECHO_REPLY   129
+#include "net_proto.h"
 
 // Map to look up UID by IP:port
 struct {
