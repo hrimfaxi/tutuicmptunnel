@@ -15,20 +15,23 @@ target_link_directories(icmptune PUBLIC .)
 target_link_libraries(icmptune ${LIBS})
 install(TARGETS icmptune RUNTIME DESTINATION bin)
 
-set(WINDIVERT_DLL_SRC "windivert.dll")
-set(WINDIVERT_SYS_SRC "WinDivert64.sys")
+set(windivert_dll_src "${CMAKE_CURRENT_SOURCE_DIR}/windivert.dll")
+set(windivert_sys_src "${CMAKE_CURRENT_SOURCE_DIR}/windivert64.sys")
 
-set(WINDIVERT_DLL_DST "${CMAKE_CURRENT_BINARY_DIR}/windivert.dll")
-set(WINDIVERT_SYS_DST "${CMAKE_CURRENT_BINARY_DIR}/WinDivert64.sys")
+set(windivert_dll_dst "${CMAKE_CURRENT_BINARY_DIR}/windivert.dll")
+set(windivert_sys_dst "${CMAKE_CURRENT_BINARY_DIR}/windivert64.sys")
 
-add_custom_command(
+# 只有当 src != dst 时才添加复制命令，避免 in-source build 自己复制自己
+if(NOT windivert_dll_src STREQUAL windivert_dll_dst OR NOT windivert_sys_src STREQUAL windivert_sys_dst)
+  add_custom_command(
     TARGET icmptune
     POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${WINDIVERT_DLL_SRC}" "${WINDIVERT_DLL_DST}"
+    "${windivert_dll_src}" "${windivert_dll_dst}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${WINDIVERT_SYS_SRC}" "${WINDIVERT_SYS_DST}"
-    COMMENT "Copying WinDivert runtime files (DLL/SYS) to build/win32"
-)
+    "${windivert_sys_src}" "${windivert_sys_dst}"
+    COMMENT "copying WinDivert runtime files (dll/sys) to build/win32"
+  )
+endif()
 
 # vim: set sw=2 ts=2 expandtab:
