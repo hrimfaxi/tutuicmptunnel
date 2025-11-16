@@ -54,6 +54,7 @@ jobs:
           cp build-win32/win32/icmptune.exe       output/ || echo "icmptune.exe not found"
           cp build-win32/win32/WinDivert.dll      output/ || echo "WinDivert.dll not found"
           cp build-win32/win32/WinDivert64.sys    output/ || echo "WinDivert64.sys not found"
+          cp /usr/x86_64-w64-mingw32/bin/libwinpthread-1.dll output/ || echo "libwinpthread-1.dll not found"
 
       - uses: actions/upload-artifact@v4
         with:
