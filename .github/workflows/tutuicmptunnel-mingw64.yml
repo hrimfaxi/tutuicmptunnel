@@ -1,0 +1,61 @@
+name: Build mingw64 Packages
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install base-devel and deps
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm base-devel git cmake mingw-w64-gcc
+
+      - name: Create build user
+        run: |
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+      - name: Clone upstream repository
+        run: git clone https://github.com/hrimfaxi/tutuicmptunnel.git tutuicmptunnel
+
+      - name: Extract version from CMakeLists.txt
+        id: version_step
+        run: |
+          VERSION=$(grep -i "project(tutuicmptunnel VERSION" tutuicmptunnel/CMakeLists.txt | sed -n 's/.*VERSION \([^ ]*\).*/\1/p')
+          echo "PACKAGE_VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "Version extracted from CMake: ${VERSION}"
+
+      - name: Build package
+        working-directory: tutuicmptunnel
+        run: |
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          sudo -u builder bash << 'EOF'
+            set -e
+            mkdir build-win32
+            cd build-win32
+            cmake -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_TOOLCHAIN_FILE=$(pwd)/../toolchains/win32-mingw64.cmake \
+              ..
+            cmake --build . -- clean all
+          EOF
+
+      - name: Collect artifacts
+        working-directory: tutuicmptunnel
+        run: |
+          mkdir -p output
+          cp build-win32/tuserver/tuctl_client.exe output/ || echo "tuctl_client.exe not found"
+          cp build-win32/win32/icmptune.exe       output/ || echo "icmptune.exe not found"
+          cp build-win32/win32/WinDivert.dll      output/ || echo "WinDivert.dll not found"
+          cp build-win32/win32/WinDivert64.sys    output/ || echo "WinDivert64.sys not found"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tutuicmptunnel-win32-mingw64-binaries
+          path: tutuicmptunnel/output/*
