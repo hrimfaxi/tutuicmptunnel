@@ -5,7 +5,7 @@ set(icmptune_SOURCES
 add_executable(icmptune ${icmptune_SOURCES})
 
 set(LIBS
-  windivert
+  WinDivert
   common
   ws2_32
 )
@@ -15,11 +15,11 @@ target_link_directories(icmptune PUBLIC .)
 target_link_libraries(icmptune ${LIBS})
 install(TARGETS icmptune RUNTIME DESTINATION bin)
 
-set(windivert_dll_src "${CMAKE_CURRENT_SOURCE_DIR}/windivert.dll")
-set(windivert_sys_src "${CMAKE_CURRENT_SOURCE_DIR}/windivert64.sys")
+set(windivert_dll_src "${CMAKE_CURRENT_SOURCE_DIR}/WinDivert.dll")
+set(windivert_sys_src "${CMAKE_CURRENT_SOURCE_DIR}/WinDivert64.sys")
 
-set(windivert_dll_dst "${CMAKE_CURRENT_BINARY_DIR}/windivert.dll")
-set(windivert_sys_dst "${CMAKE_CURRENT_BINARY_DIR}/windivert64.sys")
+set(windivert_dll_dst "${CMAKE_CURRENT_BINARY_DIR}/WinDivert.dll")
+set(windivert_sys_dst "${CMAKE_CURRENT_BINARY_DIR}/WinDivert64.sys")
 
 # 只有当 src != dst 时才添加复制命令，避免 in-source build 自己复制自己
 if(NOT windivert_dll_src STREQUAL windivert_dll_dst OR NOT windivert_sys_src STREQUAL windivert_sys_dst)
