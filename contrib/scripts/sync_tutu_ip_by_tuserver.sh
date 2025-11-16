@@ -17,7 +17,7 @@ validate_ip() {
   fi
 
   # 使用点(.)作为分隔符，将IP地址分割到数组 octets 中
-  IFS='.' read -r -a octets <<< "$ip"
+  IFS='.' read -r -a octets <<<"$ip"
 
   # 检查是否正好分割成4段
   if [[ ${#octets[@]} -ne 4 ]]; then
@@ -28,13 +28,13 @@ validate_ip() {
       # 1. 检查是否是纯数字
       # 2. 检查数字范围是否在 0-255 之间
       # 3. 检查是否有前导0 (例如 01, 007)
-      if ! [[ "$octet" =~ ^[0-9]+$ ]] || \
-        (( 10#$octet < 0 || 10#$octet > 255 )) || \
-        ( [[ "${octet:0:1}" == "0" ]] && [[ "${#octet}" -gt 1 ]] ); then
-          stat=1
-          break # 有一段不符合，就没必要继续检查了
-        else
-          stat=0
+      if ! [[ "$octet" =~ ^[0-9]+$ ]] ||
+        ((10#$octet < 0 || 10#$octet > 255)) ||
+        ([[ "${octet:0:1}" == "0" ]] && [[ "${#octet}" -gt 1 ]]); then
+        stat=1
+        break # 有一段不符合，就没必要继续检查了
+      else
+        stat=0
       fi
     done
   fi
@@ -58,4 +58,4 @@ V() {
 
 V tuctl_client psk $PSK server $HOST server-port $SERVER_PORT <<<"server-add uid $TUTU_UID address $IP port $PORT comment $COMMENT"
 
-# vim: set sw=2 expandtab:
+# vim: set sw=2 ts=2 expandtab:

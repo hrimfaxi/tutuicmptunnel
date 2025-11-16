@@ -337,4 +337,4 @@ err_cleanup:
   return err;
 }
 
-// vim: set sw=2 expandtab :
+// vim: set sw=2 ts=2 expandtab:

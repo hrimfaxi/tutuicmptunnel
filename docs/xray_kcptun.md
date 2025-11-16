@@ -215,6 +215,7 @@ sudo lsmod|grep tutu_csum_fixup
 使用以下脚本开启`ICMP`：
 
 `/usr/local/bin/tutuicmptunnel_sync.sh`:
+
 ```
 #!/bin/bash
 
@@ -249,7 +250,7 @@ echo local ip: $IP
 
 V tuctl_client psk $PSK server $HOST server-port $SERVER_PORT <<<"server-add uid $TUTU_UID address $IP port $PORT comment $COMMENT"
 
-# vim: set sw=2 expandtab:
+# vim: set sw=2 ts=2 expandtab:
 ```
 
 运行脚本，如果一切正常，你的`kcptun`的`udp`流量将被转换为`icmp`流量。
@@ -262,3 +263,4 @@ sudo tcpdump -i any -n icmp -v
 ### 开机自启
 
 参见[hysteria](hysteria.md)，可以定期使用`crontab`或者`systemd-timer`调用`/usr/local/bin/tutuicmptunnel_sync.sh`.
+

@@ -558,3 +558,5 @@ static inline void hlist_add_after(struct hlist_node *n, struct hlist_node *next
        pos = n)
 
 #endif
+
+// vim: set sw=2 ts=2 expandtab:

@@ -80,4 +80,4 @@ int uid_map_get_uid(const uid_map_t *map, const char *hostname, int *result_uid)
   return -ENOENT;
 }
 
-/* vim: set sw=2 expandtab : */
+// vim: set sw=2 ts=2 expandtab:

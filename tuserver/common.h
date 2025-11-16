@@ -97,4 +97,4 @@ size_t scnprintf(char *buf, size_t size, const char *fmt, ...) __attribute__((fo
 
 int sleep_ms(unsigned int ms);
 
-// vim: set sw=2 expandtab :
+// vim: set sw=2 ts=2 expandtab:

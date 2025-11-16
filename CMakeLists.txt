@@ -312,4 +312,4 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
   set(CMAKE_INSTALL_DO_STRIP ON)
 endif()
 
-# vim: set sw=2 expandtab :
+# vim: set sw=2 ts=2 expandtab:

@@ -193,4 +193,4 @@ int unauto_pin(void) {
   return rmdir(PIN_DIR);
 }
 
-/* vim: set sw=2 expandtab: */
+// vim: set sw=2 ts=2 expandtab:

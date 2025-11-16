@@ -36,3 +36,5 @@ typedef uint16_t __be16;
 #include <sys/types.h>
 #include <unistd.h>
 #endif
+
+// vim: set sw=2 ts=2 expandtab:

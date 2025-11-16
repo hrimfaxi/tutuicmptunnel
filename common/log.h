@@ -42,3 +42,5 @@ void log_any(int level, const char *fmt, ...);
 #define log_info(fmt, ...)  log_any(LOG_INFO, fmt, ##__VA_ARGS__)
 #define log_debug(fmt, ...) log_any(LOG_DEBUG, fmt, ##__VA_ARGS__)
 #define log_trace(fmt, ...) log_any(LOG_TRACE, fmt, ##__VA_ARGS__)
+
+// vim: set sw=2 ts=2 expandtab:

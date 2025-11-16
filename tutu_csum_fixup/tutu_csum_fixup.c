@@ -189,4 +189,4 @@ static void __exit mimic_exit(void) {
 module_init(mimic_init);
 module_exit(mimic_exit);
 
-// vim: set sw=2 expandtab :
+// vim: set sw=2 ts=2 expandtab:

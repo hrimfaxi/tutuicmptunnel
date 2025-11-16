@@ -111,4 +111,4 @@ help:
 	@echo "  CLANG=path  - Path to clang compiler"
 	@echo "  BPFTOOL=path- Path to bpftool"
 
-# vim: set sw=2 :
+# vim: set ts=2 sw=2:

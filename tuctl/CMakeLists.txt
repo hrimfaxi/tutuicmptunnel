@@ -39,4 +39,5 @@ endif()
 target_link_libraries(${PROG_NAME} common pthread ${LIBBPF})
 
 install(TARGETS ${PROG_NAME} RUNTIME DESTINATION sbin)
+
 # vim: set sw=2 ts=2 expandtab:

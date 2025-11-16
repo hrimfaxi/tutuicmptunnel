@@ -142,4 +142,4 @@ int rl_allow(rate_limiter_t *rl, const struct sockaddr_storage *sa) {
   return 0;
 }
 
-// vim: set sw=2 expandtab :
+// vim: set sw=2 ts=2 expandtab:

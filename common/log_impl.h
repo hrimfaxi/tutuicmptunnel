@@ -26,3 +26,5 @@ void log_any(int level, const char *fmt, ...) {
   }
   va_end(ap);
 }
+
+// vim: set sw=2 ts=2 expandtab:
