@@ -26,47 +26,31 @@ void uid_map_free(uid_map_t *map) {
   }
 }
 
+extern FILE *uid_map_lexer_in;
+extern int uid_map_lexer_lineno;
+extern int uid_map_lexer_parse(uid_map_t *map);
+extern void uid_map_lexer_lex_destroy(void); /* 用于清理 Flex 内存 */
+
 int uid_map_load(uid_map_t *map, const char *filepath) {
-  int    err = -EINVAL, line_num = 0;
-  FILE  *file = NULL;
-  char  *line = NULL;
-  size_t len  = 0;
+  FILE *file = NULL;
+  int err;
 
   if (!map || !filepath)
-    goto err_cleanup;
+    return -EINVAL;
 
-  file = try2_p(fopen(filepath, "r"));
+  file = try2_p(fopen(filepath, "r"), "fopen: %s", strret);
 
-  while (getline(&line, &len, file) != -1) {
-    line_num++;
-
-    strip_inline_comment(line);
-    if (line[0] == '\0')
-      continue;
-
-    int  uid;
-    char hostname_buf[256];
-
-    if (sscanf(line, "%d %255s", &uid, hostname_buf) == 2) {
-      if (uid >= 0 && uid < UID_LEN) {
-        if (map->hostnames[uid]) {
-          log_warn("Duplicated UID %d at line %d", uid, line_num);
-          free(map->hostnames[uid]);
-        }
-
-        try2(strdup_safe(hostname_buf, &map->hostnames[uid]), "strdup failed");
-      } else {
-        log_warn("Invalid UID: %d out of range(0-%d) at line %d, ignoring...", uid, UID_LEN - 1, line_num);
-      }
-    }
-  }
-
+  uid_map_lexer_lineno = 1;
+  uid_map_lexer_in = file;
+  try2(uid_map_lexer_parse(map), "Failed to parse UID map file: %s", filepath);
   err = 0;
 err_cleanup:
-  if (file)
+  uid_map_lexer_lex_destroy();
+  if (file) {
     fclose(file);
-  if (line)
-    free(line);
+    file = NULL;
+  }
+
   return err;
 }
 

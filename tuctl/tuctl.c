@@ -139,8 +139,6 @@ static int       debug   = 0;
 static int       family  = AF_UNSPEC;
 static int       help    = 0;
 
-static const char *special_chars = "\"\\$'\r\n";
-
 // 使用完后需要释放string
 static int uid2string(uint8_t uid, char **string, int dump) {
   const char *host = NULL;
@@ -150,19 +148,8 @@ static int uid2string(uint8_t uid, char **string, int dump) {
   if (numeric || uid_map_get_host(&uids, uid, &host))
     return asprintf(string, uid_fmt, uid) != -1 ? 0 : -ENOMEM;
 
-  int needs_quoting = !!strpbrk(host, special_chars);
-
-  if (needs_quoting) {
-    char *escaped = NULL;
-    try(escapestr(host, &escaped));
-
-    const char *user_fmt = dump ? "user \"%s\"" : "User: \"%s\"";
-    err                  = asprintf(string, user_fmt, escaped) != -1 ? 0 : -ENOMEM;
-    free(escaped);
-  } else {
-    const char *user_fmt = dump ? "user %s" : "User: %s";
-    err                  = asprintf(string, user_fmt, host) != -1 ? 0 : -ENOMEM;
-  }
+  const char *user_fmt = dump ? "user %s" : "User: %s";
+  err                  = asprintf(string, user_fmt, host) != -1 ? 0 : -ENOMEM;
 
   return err;
 }
@@ -900,32 +887,12 @@ static int print_status_usage(int argc, char *argv[]) {
   return 0;
 }
 
-static void print_escaped(const char *str, size_t len) {
-  for (size_t i = 0; i < len && str[i] != '\0'; ++i) {
-    char c = str[i];
-    // Escape characters that are special inside double quotes
-    if (c == '"' || c == '\\' || c == '$' || c == '\'') {
-      putchar('\\');
-    }
-    putchar(c);
-  }
-}
-
 static void print_comment(const char *comment, size_t comment_len, int dsl) {
   if (!comment[0])
     return;
 
-  int needs_quoting = !!strpbrk(comment, special_chars);
-
   printf(dsl ? " comment " : ", Comment: ");
-
-  if (needs_quoting) {
-    putchar('"');
-    print_escaped(comment, comment_len);
-    putchar('"');
-  } else {
-    printf("%.*s", (int) comment_len, comment);
-  }
+  printf("%.*s", (int) comment_len, comment);
 }
 
 static int get_boot_seconds(__u64 *seconds) {
@@ -1275,7 +1242,7 @@ static void print_help_usage(void) {
   }
 }
 
-static int dispatch(int argc, char **argv) {
+int dispatch(int argc, char **argv) {
   if (argc <= 0 || !argv || !argv[0])
     return -EINVAL;
 
@@ -1303,51 +1270,43 @@ static int print_script_usage(int argc, char **argv) {
   return 0;
 }
 
+extern int   script_parse(void);
+extern FILE *script_in;
+extern void  script_lex_destroy(void);
+extern int   script_exit_code;
+
 int cmd_script(int argc, char **argv) {
   FILE       *fp   = NULL;
   const char *path = "-";
-  char       *line = NULL;
-  size_t      len  = 0;
-  int         lnum = 0;
-
-  int err = 0;
+  int         err  = 0;
 
   if (help || argc > 2) {
     return print_script_usage(argc, argv), -EINVAL;
   }
 
-  if (argc == 2)
+  if (argc == 2) {
     path = argv[1];
-  if (!strcmp(path, "-")) {
+  }
+
+  // 打开文件
+  if (strcmp(path, "-") == 0) {
     fp = stdin;
   } else {
     fp = try2_p(fopen(path, "r"), "fopen: %s", strret);
   }
 
-  while (getline(&line, &len, fp) != -1) {
-    ++lnum;
-    strip_inline_comment(line);
-    LIST_HEAD(args);
-    try2(split_args_list(line, &args), "parse error at line %d: %s\n", lnum, line);
+  script_in = fp;
 
-    if (list_empty(&args))
-      continue;
+  script_exit_code = 0;
+  try2(script_parse(), "Script execution aborted due to syntax error.");
+  err = script_exit_code;
+err_cleanup:
+  script_lex_destroy();
 
-    int    my_argc = 0;
-    char **my_argv = NULL;
-    try2(args_list_to_argv(&args, &my_argc, &my_argv));
-
-    err = dispatch(my_argc, my_argv);
-    free(my_argv);
-    free_args_list(&args);
-    if (err)
-      break;
+  if (fp && fp != stdin) {
+    fclose(fp);
   }
 
-err_cleanup:
-  if (fp && fp != stdin)
-    fclose(fp);
-  free(line);
   return err;
 }
 

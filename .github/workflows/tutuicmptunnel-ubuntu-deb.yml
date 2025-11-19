@@ -10,7 +10,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y git clang llvm cmake libsodium-dev dkms libelf-dev build-essential fakeroot debhelper dh-make
+          sudo apt-get install -y git clang llvm cmake libsodium-dev dkms libelf-dev build-essential fakeroot debhelper dh-make flex bison
 
       - name: Clone upstream repository
         run: git clone https://github.com/hrimfaxi/tutuicmptunnel.git tutuicmptunnel

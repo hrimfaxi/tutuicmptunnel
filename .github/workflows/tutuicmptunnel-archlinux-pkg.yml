@@ -15,7 +15,7 @@ jobs:
       - name: Install base-devel and deps
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel git libsodium dkms linux-headers libbpf cmake clang llvm
+          pacman -S --noconfirm base-devel git libsodium dkms linux-headers libbpf cmake clang llvm flex bison
 
       - name: Create build user
         run: |

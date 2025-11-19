@@ -10,3 +10,12 @@ CMakeCache.txt
 CMakeFiles
 cmake_install.cmake
 *.o
+
+*.rej
+tuctl/uid_map_parser.h
+tuctl/uid_map_parser.c
+tuctl/uid_map_lexer.c
+
+tuctl/script_parser.h
+tuctl/script_parser.c
+tuctl/script_lexer.c

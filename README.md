@@ -53,7 +53,7 @@ Version: At least 20.04, with version 24.04 LTS or newer recommended.
 Dependencies:
 
 ```sh
-sudo apt install -y git libbpf-dev clang llvm cmake libsodium-dev dkms linux-tools libsodium-dev libelf-dev
+sudo apt install -y git libbpf-dev clang llvm cmake libsodium-dev dkms linux-tools libsodium-dev libelf-dev flex bison
 ```
 
 Note: If you are not using the standard `ubuntu` kernel, please install the corresponding `linux-tools` for your kernel.
@@ -66,7 +66,7 @@ Version: Latest is sufficient
 Dependency Preparation:
 
 ```sh
-sudo pacman -S git base-devel libbpf clang cmake libsodium dkms libsodium
+sudo pacman -S git base-devel libbpf clang cmake libsodium dkms libsodium flex bison
 ```
 ### `Openwrt`
 
