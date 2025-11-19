@@ -1295,10 +1295,16 @@ int cmd_script(int argc, char **argv) {
     fp = try2_p(fopen(path, "r"), "fopen: %s", strret);
   }
 
-  script_in = fp;
-
+  script_in        = fp;
   script_exit_code = 0;
-  try2(script_parse(), "Script execution aborted due to syntax error.");
+  err              = script_parse();
+
+  if (err) {
+    log_error("Script execution aborted due to %s.", err == 1 ? "syntax error" : "memory exhaustion");
+    err = -1;
+    goto err_cleanup;
+  }
+
   err = script_exit_code;
 err_cleanup:
   script_lex_destroy();

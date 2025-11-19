@@ -60,6 +60,8 @@ static void execute_cmd() {
 %token <sval> WORD STRING
 %token SEMICOLON EOL
 
+%destructor { free($$); } WORD STRING
+
 %%
 
 script:

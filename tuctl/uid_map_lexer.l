@@ -1,7 +1,9 @@
 %{
 #include <stdio.h>
 #include <string.h>
+#include "log.h"
 #include "tuctl.h"
+#include "tuparser.h"
 #include "uid_map_parser.h"
 
 static char *safe_strdup(const char *s) {
@@ -26,7 +28,14 @@ static char *safe_strdup(const char *s) {
 [ \t\r]+  { /* 忽略空白符 */ }
 
 [0-9]+   {
-  uid_map_lexer_lval.ival = atoi(yytext);
+  uint8_t uid;
+  int err = parse_uid(yytext, &uid);
+
+  if (err) {
+    log_error("Invalid UID '%s' at line %d: value out of range or invalid format.", yytext, yylineno);
+    return yytext[0];
+  }
+  uid_map_lexer_lval.ival = (int) uid;
   return INTEGER;
 }
 

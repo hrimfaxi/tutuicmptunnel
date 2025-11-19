@@ -28,6 +28,8 @@ void uid_map_lexer_error(uid_map_t *map, const char *s);
 %token <sval> STRING
 %token EOL
 
+%destructor { free($$); } STRING
+
 %%
 
 config:
