@@ -3,9 +3,9 @@
 #include <string.h>
 
 #include "log.h"
-#include "parser.h"
 #include "read_script.h"
 #include "try.h"
+#include "tuparser.h"
 
 int ftello_safe(FILE *stream, off_t *offset) {
   off_t pos = ftello(stream);

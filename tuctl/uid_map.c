@@ -5,9 +5,9 @@
 #include <string.h>
 
 #include "log.h"
-#include "parser.h"
 #include "try.h"
 #include "tuctl.h"
+#include "tuparser.h"
 
 void uid_map_init(uid_map_t *map) {
   if (!map)

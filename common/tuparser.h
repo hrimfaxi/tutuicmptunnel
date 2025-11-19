@@ -28,4 +28,4 @@ int  args_list_to_argv(struct list_head *head, int *argc_out, char ***argv_out);
 
 int escapestr(const char *str, char **escaped);
 
-/* vim: set sw=2 expandtab : */
+// vim: set sw=2 ts=2 expandtab:

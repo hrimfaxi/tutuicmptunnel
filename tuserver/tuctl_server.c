@@ -13,8 +13,8 @@
 #include "common.h"
 #include "list.h"
 #include "log.h"
-#include "parser.h"
 #include "try.h"
+#include "tuparser.h"
 
 // 覆盖argv里的psk
 static void wipe_argv_psk(int argc, char **argv, const char *psk) {

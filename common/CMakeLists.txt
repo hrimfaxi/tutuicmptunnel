@@ -1,5 +1,5 @@
 set(SOURCES
-  parser.c
+  tuparser.c
   resolve.c
   read_script.c
 )

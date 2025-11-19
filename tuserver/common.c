@@ -12,8 +12,8 @@
 
 #include "common.h"
 #include "log.h"
-#include "parser.h"
 #include "try.h"
+#include "tuparser.h"
 
 // 地址字符串化
 int addr_to_str(const struct sockaddr_storage *addr, char *out, size_t len) {

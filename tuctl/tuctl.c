@@ -12,10 +12,10 @@
 #include "defs.h"
 #include "list.h"
 #include "log.h"
-#include "parser.h"
 #include "resolve.h"
 #include "try.h"
 #include "tuctl.h"
+#include "tuparser.h"
 
 #include "tutuicmptunnel.debug.skel.h"
 #include "tutuicmptunnel.skel.h"
