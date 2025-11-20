@@ -6,7 +6,7 @@
 #include "network.h"
 
 #include "log.h"
-#include "parser.h"
+#include "tuparser.h"
 #include "resolve.h"
 #include "try.h"
 #include "windivert.h"
