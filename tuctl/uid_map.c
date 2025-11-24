@@ -38,7 +38,7 @@ int uid_map_load(uid_map_t *map, const char *filepath) {
   if (!map || !filepath)
     return -EINVAL;
 
-  file = try2_p(fopen(filepath, "r"), "fopen: %s", strret);
+  file = try2_p(fopen(filepath, "r"));
 
   uid_map_lexer_lineno = 1;
   uid_map_lexer_in     = file;
