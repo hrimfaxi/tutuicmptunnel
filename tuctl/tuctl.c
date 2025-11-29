@@ -887,7 +887,7 @@ static int print_status_usage(int argc, char *argv[]) {
   return 0;
 }
 
-static void print_comment(const char *comment, size_t comment_len, int dsl) {
+static void print_comment(int dsl, const char *comment, size_t comment_len) {
   if (!comment[0])
     return;
 
@@ -1011,7 +1011,7 @@ int cmd_status(int argc, char **argv) {
              uidstr, ipstr, ntohs(value.dport), ntohs(value.icmp_id));
       free(uidstr);
 
-      print_comment((const char *) value.comment, sizeof(value.comment), 0);
+      print_comment(0, (const char *) value.comment, sizeof(value.comment));
       printf("\n");
     });
 
@@ -1051,7 +1051,7 @@ int cmd_status(int argc, char **argv) {
         try2(uid2string(value.uid, &uidstr, 0), "uid2string: %s", strret);
         printf("  %s, Address: %s, Port: %u", uidstr, ipstr, ntohs(key.port));
         free(uidstr);
-        print_comment((const char *) value.comment, sizeof(value.comment), 0);
+        print_comment(0, (const char *) value.comment, sizeof(value.comment));
         printf("\n");
         cnt++;
       }
@@ -1174,7 +1174,7 @@ int cmd_dump(int argc, char **argv) {
              uidstr, ipstr, ntohs(value.icmp_id), ntohs(value.dport));
       free(uidstr);
 
-      print_comment((const char *) value.comment, sizeof(value.comment), 1);
+      print_comment(1, (const char *) value.comment, sizeof(value.comment));
       printf("\n");
     });
   } else {
@@ -1194,7 +1194,7 @@ int cmd_dump(int argc, char **argv) {
                "port %u",
                uidstr, ipstr, ntohs(key.port));
         free(uidstr);
-        print_comment((const char *) value.comment, sizeof(value.comment), 1);
+        print_comment(1, (const char *) value.comment, sizeof(value.comment));
         printf("\n");
       }
     });
