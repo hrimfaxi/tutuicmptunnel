@@ -56,6 +56,11 @@ V() {
   "$@"
 }
 
-V tuctl_client psk $PSK server $HOST server-port $SERVER_PORT <<<"server-add uid $TUTU_UID address $IP port $PORT comment $COMMENT"
+V tuctl_client psk $PSK server $HOST server-port $SERVER_PORT <<<"server; server-add \
+  uid $TUTU_UID \
+  address $IP \
+  port $PORT \
+  comment $COMMENT \
+"
 
 # vim: set sw=2 ts=2 expandtab:
