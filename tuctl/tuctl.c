@@ -907,7 +907,9 @@ static int get_boot_seconds(__u64 *seconds) {
       return -EFAULT;
     *seconds = (__u64) ts.tv_sec;
     return 0;
-  } else if (errno != EINVAL && errno != ENOTSUP) {
+  }
+
+  if (errno != EINVAL && errno != ENOTSUP) {
     return -errno;
   }
 #endif
