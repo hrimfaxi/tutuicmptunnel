@@ -48,39 +48,39 @@ static int parse_dsl_args(int argc, char **argv, args_t *out) {
   for (int i = 1; i < argc; ++i) {
     const char *tok = argv[i];
 
-    if (matches(tok, "server-port") == 0) {
+    if (matches(tok, "server-port")) {
       if (++i >= argc)
         goto usage;
 
       try(parse_port(argv[i], &server_port));
-    } else if (matches(tok, "script") == 0) {
+    } else if (matches(tok, "script")) {
       if (++i >= argc)
         goto usage;
 
       script = argv[i];
-    } else if (matches(tok, "psk") == 0) {
+    } else if (matches(tok, "psk")) {
       if (++i >= argc)
         goto usage;
 
       psk = argv[i];
-    } else if (matches(tok, "server") == 0) {
+    } else if (matches(tok, "server")) {
       if (++i >= argc)
         goto usage;
 
       server = argv[i];
-    } else if (matches(tok, "window") == 0) {
+    } else if (matches(tok, "window")) {
       if (++i >= argc)
         goto usage;
 
       try(parse_window(argv[i], &window));
-    } else if (matches(tok, "max-retries") == 0) {
+    } else if (matches(tok, "max-retries")) {
       if (++i >= argc)
         goto usage;
 
       try(parse_u16(argv[i], &max_retries));
-    } else if (matches(tok, "-4") == 0) {
+    } else if (matches(tok, "-4")) {
       family = AF_INET;
-    } else if (matches(tok, "-6") == 0) {
+    } else if (matches(tok, "-6")) {
       family = AF_INET6;
     } else if (is_help_kw(tok)) {
       goto usage;

@@ -14,7 +14,7 @@ int parse_window(const char *input, uint32_t *out_window);
 
 void strip_inline_comment(char *s);
 
-int  matches(const char *arg, const char *keyword);
+bool matches(const char *arg, const char *keyword);
 bool is_address_kw(const char *arg);
 bool is_help_kw(const char *arg);
 bool is_user_kw(const char *arg);

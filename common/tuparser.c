@@ -105,21 +105,21 @@ int parse_window(const char *input, uint32_t *out_window) {
   return 0;
 }
 
-int matches(const char *arg, const char *keyword) {
-  return strcasecmp(arg, keyword);
+bool matches(const char *arg, const char *keyword) {
+  return strcasecmp(arg, keyword) == 0;
 }
 
 /* 可选：允许“addr”当“address” */
 bool is_address_kw(const char *arg) {
-  return matches(arg, "address") == 0 || matches(arg, "addr") == 0;
+  return matches(arg, "address") || matches(arg, "addr");
 }
 
 bool is_help_kw(const char *arg) {
-  return matches(arg, "-h") == 0 || matches(arg, "--help") == 0 || matches(arg, "help") == 0;
+  return matches(arg, "-h") || matches(arg, "--help") || matches(arg, "help");
 }
 
 bool is_user_kw(const char *arg) {
-  return matches(arg, "uid") == 0 || matches(arg, "user") == 0;
+  return matches(arg, "uid") || matches(arg, "user");
 }
 
 int strdup_safe(const char *src, char **dst) {
