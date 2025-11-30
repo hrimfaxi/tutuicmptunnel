@@ -12,6 +12,8 @@
 
 #define TC_ACT_OK   0
 #define TC_ACT_SHOT 2
+#define XDP_DROP    1
+#define XDP_PASS    2
 #define ETH_P_IP    0x0800 /* Internet Protocol packet	*/
 #define ETH_P_IPV6  0x86DD /* IPv6 over bluebook	*/
 #define ETH_P_IPV6  0x86DD /* IPv6 over bluebook	*/
@@ -180,6 +182,14 @@ static __always_inline void *skb_data_end(const struct __sk_buff *ctx) {
   asm volatile("%[res] = *(u32 *)(%[base] + %[offset])"
                : [res] "=r"(data_end)
                : [base] "r"(ctx), [offset] "i"(offsetof(struct __sk_buff, data_end)), "m"(*ctx));
+  return data_end;
+}
+
+static __always_inline void *xdp_data_end(const struct xdp_md *ctx) {
+  void *data_end;
+  asm volatile("%[res] = *(u32 *)(%[base] + %[offset])"
+               : [res] "=r"(data_end)
+               : [base] "r"(ctx), [offset] "i"(offsetof(struct xdp_md, data_end)), "m"(*ctx));
   return data_end;
 }
 
@@ -588,6 +598,98 @@ static __always_inline int check_age(struct config *cfg, struct session_key *loo
   return 0;
 }
 
+static __always_inline int _parse_headers(void *data, void *data_end, bool has_eth, __u32 *ip_type, __u32 *l2_len,
+                                          __u32 *ip_len, __u8 *ip_proto, __u32 *ip_proto_offset, __u32 *hdr_len) {
+  __u32          local_l2_len = 0;
+  struct ethhdr *eth;
+
+  if (has_eth) {
+    if (data + sizeof(*eth) > data_end)
+      return -1;
+
+    eth          = data;
+    local_l2_len = sizeof(*eth);
+
+    switch (eth->h_proto) {
+    case bpf_htons(ETH_P_IP):
+      goto handle_ipv4;
+    case bpf_htons(ETH_P_IPV6):
+      goto handle_ipv6;
+    default:
+      return -1;
+    }
+  } else {
+    struct iphdr *iph_tmp = data;
+    if ((void *) (iph_tmp + 1) > data_end)
+      return -1;
+
+    switch (iph_tmp->version) {
+    case 4:
+      goto handle_ipv4;
+    case 6:
+      goto handle_ipv6;
+    default:
+      return -1;
+    }
+  }
+
+handle_ipv4: {
+  struct iphdr *ipv4 = data + local_l2_len;
+  if ((void *) (ipv4 + 1) > data_end)
+    return -1;
+
+  __u32 local_ip_len = ipv4->ihl * 4;
+  if (local_ip_len < sizeof(*ipv4) || data + local_l2_len + local_ip_len > data_end)
+    return -1;
+
+  *ip_type         = 4;
+  *ip_proto        = ipv4->protocol;
+  *ip_len          = local_ip_len;
+  *l2_len          = local_l2_len;
+  *hdr_len         = local_l2_len + local_ip_len;
+  *ip_proto_offset = local_l2_len + offsetof(struct iphdr, protocol);
+  return 0;
+}
+
+handle_ipv6: {
+  struct ipv6hdr *ipv6 = data + local_l2_len;
+  if ((void *) (ipv6 + 1) > data_end)
+    return -1;
+
+  __u8  next_hdr          = ipv6->nexthdr;
+  __u32 proto_offset      = local_l2_len + offsetof(struct ipv6hdr, nexthdr);
+  __u32 current_hdr_start = local_l2_len + sizeof(*ipv6);
+
+#pragma unroll
+  for (int i = 0; i < 8; i++) {
+    if (!ipv6_is_ext(next_hdr))
+      break;
+
+    struct ipv6_opt_hdr *opt = data + current_hdr_start;
+    if ((void *) (opt + 1) > data_end)
+      return -1;
+
+    proto_offset = current_hdr_start + offsetof(struct ipv6_opt_hdr, nexthdr);
+    current_hdr_start += (opt->hdrlen + 1) << 3;
+    if (data + current_hdr_start > data_end)
+      return -1;
+
+    next_hdr = opt->nexthdr;
+  }
+
+  if (data + current_hdr_start > data_end)
+    return -1;
+
+  *ip_type         = 6;
+  *ip_proto        = next_hdr;
+  *ip_len          = current_hdr_start - local_l2_len;
+  *l2_len          = local_l2_len;
+  *hdr_len         = current_hdr_start;
+  *ip_proto_offset = proto_offset;
+  return 0;
+}
+}
+
 int link_type = LINK_AUTODETECT;
 
 /*
@@ -613,10 +715,8 @@ int link_type = LINK_AUTODETECT;
  */
 static __always_inline int parse_headers(struct __sk_buff *skb, __u32 *ip_type, __u32 *l2_len, __u32 *ip_len, __u8 *ip_proto,
                                          __u32 *ip_proto_offset, __u32 *hdr_len) {
-  void          *data, *data_end;
-  __u32          local_l2_len = 0;
-  struct ethhdr *eth;
-  int            has_eth = 0;
+  void *data, *data_end;
+  bool  has_eth;
 
   *ip_type = *l2_len = *ip_len = *ip_proto_offset = *hdr_len = *ip_proto = 0;
 
@@ -626,11 +726,11 @@ static __always_inline int parse_headers(struct __sk_buff *skb, __u32 *ip_type, 
     has_eth = is_eth_header_present(skb);
     break;
   case LINK_ETH:
-    has_eth = 1;
+    has_eth = true;
     break;
   case LINK_NONE:
   default:
-    has_eth = 0;
+    has_eth = false;
     break;
   }
 
@@ -650,86 +750,7 @@ static __always_inline int parse_headers(struct __sk_buff *skb, __u32 *ip_type, 
     data_end = (void *) (long) skb->data_end;
   }
 
-  if (has_eth) {
-    if (data + sizeof(*eth) > data_end)
-      return -1;
-    eth          = data;
-    local_l2_len = sizeof(*eth);
-
-    switch (eth->h_proto) {
-    case bpf_htons(ETH_P_IP):
-      goto handle_ipv4;
-    case bpf_htons(ETH_P_IPV6):
-      goto handle_ipv6;
-    default:
-      return -1;
-    }
-  } else {
-    struct iphdr *iph_tmp = data;
-    if (data + sizeof(*iph_tmp) > data_end)
-      return -1;
-    switch (iph_tmp->version) {
-    case 4:
-      goto handle_ipv4;
-    case 6:
-      goto handle_ipv6;
-    default:
-      return -1;
-    }
-  }
-
-handle_ipv4:;
-  struct iphdr *ipv4 = data + local_l2_len;
-  if ((void *) (ipv4 + 1) > data_end) {
-    return -1;
-  }
-
-  __u32 local_ip_len = ipv4->ihl * 4;
-  if (local_ip_len < sizeof(*ipv4)) {
-    return -1;
-  }
-
-  *ip_type         = 4;
-  *ip_proto        = ipv4->protocol;
-  *ip_len          = local_ip_len;
-  *l2_len          = local_l2_len;
-  *hdr_len         = local_l2_len + local_ip_len;
-  *ip_proto_offset = local_l2_len + offsetof(struct iphdr, protocol);
-  return 0;
-
-handle_ipv6:;
-  struct ipv6hdr *ipv6 = data + local_l2_len;
-  if ((void *) (ipv6 + 1) > data_end)
-    return -1;
-
-  __u8 next_hdr = ipv6->nexthdr;
-  // 初始偏移量指向主 IPv6 头中的 nexthdr 字段
-  __u32 local_proto_offset = local_l2_len + offsetof(struct ipv6hdr, nexthdr);
-  __u32 current_hdr_start  = local_l2_len + sizeof(*ipv6);
-
-// 遍历 IPv6 扩展头
-#pragma unroll
-  for (int i = 0; i < 8; i++) {
-    if (!ipv6_is_ext(next_hdr))
-      break;
-
-    struct ipv6_opt_hdr *opt_hdr = data + current_hdr_start;
-    if ((void *) (opt_hdr + 1) > data_end)
-      return -1;
-
-    // 更新协议字段偏移量为当前扩展头的 nexthdr 字段的偏移量
-    local_proto_offset = current_hdr_start + offsetof(struct ipv6_opt_hdr, nexthdr);
-    next_hdr           = opt_hdr->nexthdr;
-    current_hdr_start += (opt_hdr->hdrlen + 1) << 3;
-  }
-
-  *ip_type         = 6;
-  *ip_proto        = next_hdr;
-  *ip_len          = current_hdr_start - local_l2_len;
-  *l2_len          = local_l2_len;
-  *hdr_len         = current_hdr_start;
-  *ip_proto_offset = local_proto_offset; // 保存最终计算出的偏移量
-  return 0;
+  return _parse_headers(data, data_end, has_eth, ip_type, l2_len, ip_len, ip_proto, ip_proto_offset, hdr_len);
 }
 
 static __always_inline int update_ipv4_checksum(struct __sk_buff *skb, struct iphdr *ipv4, __u32 l2_len, __u32 old_proto,
@@ -1060,36 +1081,105 @@ static __always_inline void update_udp_cksum(struct iphdr *ipv4, struct ipv6hdr 
     udp->check = CSUM_MANGLED_0;
 }
 
+#ifdef ENABLE_XDP_INGRESS
+static __always_inline int parse_headers_xdp(void *data, void *data_end, __u32 *ip_type, __u32 *l2_len, __u32 *ip_len,
+                                             __u8 *ip_proto, __u32 *ip_proto_offset, __u32 *hdr_len) {
+  *ip_type = *l2_len = *ip_len = *ip_proto_offset = *hdr_len = *ip_proto = 0;
+  return _parse_headers(data, data_end, true, ip_type, l2_len, ip_len, ip_proto, ip_proto_offset, hdr_len);
+}
+
+static __always_inline int update_ipv4_checksum_xdp(struct iphdr *iph, __u8 old_proto, __u8 new_proto) {
+  const __be16 old_word = bpf_htons((iph->ttl << 8) | old_proto);
+  const __be16 new_word = bpf_htons((iph->ttl << 8) | new_proto);
+
+  __wsum csum = csum_unfold(~iph->check);
+  csum        = csum_sub(csum, csum_unfold(old_word));
+  csum        = csum_add(csum, csum_unfold(new_word));
+  iph->check  = csum_fold(csum);
+
+  return 0;
+}
+#endif
+
+static __always_inline int parse_headers_ingress(void *ctx, __u32 *ip_type, __u32 *l2_len, __u32 *ip_len, __u8 *ip_proto,
+                                                 __u32 *ip_proto_offset, __u32 *ip_end) {
+#ifdef ENABLE_XDP_INGRESS
+  void *data     = (void *) (long) ((struct xdp_md *) ctx)->data;
+  void *data_end = (void *) (long) ((struct xdp_md *) ctx)->data_end;
+  int   err;
+
+  err = parse_headers_xdp(data, data_end, ip_type, l2_len, ip_len, ip_proto, ip_proto_offset, ip_end);
+  if (err)
+    return err;
+
+  if (data + *ip_end + sizeof(struct icmphdr) > data_end)
+    return -1;
+
+  return 0;
+#else
+  return parse_headers((struct __sk_buff *) ctx, ip_type, l2_len, ip_len, ip_proto, ip_proto_offset, ip_end);
+#endif
+}
+
+// xdp分支返回XDP_PASS，而不是TC_ACT_OK
+#ifdef ENABLE_XDP_INGRESS
+#undef try_ok
+#undef try2_p_ok
+#undef try2_ok
+#undef decl_ok
+#undef redecl_ok
+#define try_ok    try_pass
+#define try2_p_ok try2_p_pass
+#define try2_ok   try2_pass
+#define decl_ok   decl_pass
+#define redecl_ok redecl_pass
+#endif
+
 // Incoming packet handler (ICMP -> UDP)
+#ifdef ENABLE_XDP_INGRESS
+SEC("xdp.frags")
+#else
 SEC("tc/ingress")
-int handle_ingress(struct __sk_buff *skb) {
+#endif
+int handle_ingress(
+#ifdef ENABLE_XDP_INGRESS
+  struct xdp_md *ctx
+#else
+  struct __sk_buff *ctx
+#endif
+
+) {
   int            err;
   __u32          ip_end = 0, ip_proto_offset = 0, l2_len, ip_len, ip_type;
   __u8           ip_proto;
   struct config *cfg;
 
+  (void) xdp_data_end;
+
   {
     __u32 key = 0;
-    cfg       = try2_p_ok(bpf_map_lookup_elem(&config_map, &key), "config_map cannot be found");
+    cfg       = try2_p_ok(bpf_map_lookup_elem(&config_map, &key));
   }
 
-  try2_ok(parse_headers(skb, &ip_type, &l2_len, &ip_len, &ip_proto, &ip_proto_offset, &ip_end), "parse_headers failed: %d",
-          _ret);
-  try2_ok((ip_proto == IPPROTO_ICMP || ip_proto == IPPROTO_ICMPV6) ? 0 : -1);
+  try2_ok(parse_headers_ingress(ctx, &ip_type, &l2_len, &ip_len, &ip_proto, &ip_proto_offset, &ip_end));
+  try2_ok(ip_proto == IPPROTO_ICMP || ip_proto == IPPROTO_ICMPV6 ? 0 : -1);
+
+#ifndef ENABLE_XDP_INGRESS
   // 重新pull 整个以太网+ip头部+icmp/icmp6头部
-  try2_ok(bpf_skb_pull_data(skb, ip_end + sizeof(struct icmphdr)), "pull data failed: %d", _ret);
+  try2_ok(bpf_skb_pull_data(ctx, ip_end + sizeof(struct icmphdr)), "pull data failed: %d", _ret);
+#endif
   _Static_assert(sizeof(struct icmphdr) == sizeof(struct icmp6hdr), "ICMP and ICMPv6 header sizes must match");
 
   struct iphdr   *ipv4 = NULL;
   struct ipv6hdr *ipv6 = NULL;
 
   if (ip_type == 4) {
-    redecl_ok(struct iphdr, ipv4, l2_len, skb);
+    redecl_ok(struct iphdr, ipv4, l2_len, ctx);
   } else if (ip_type == 6) {
-    redecl_ok(struct ipv6hdr, ipv6, l2_len, skb);
+    redecl_ok(struct ipv6hdr, ipv6, l2_len, ctx);
   }
 
-  decl_ok(struct icmphdr, icmp, ip_end, skb);
+  decl_ok(struct icmphdr, icmp, ip_end, ctx);
 
   // Extract UID from ICMP code
   __u8   uid      = icmp->code;
@@ -1166,15 +1256,17 @@ int handle_ingress(struct __sk_buff *skb) {
 
   __sync_fetch_and_add(&cfg->packets_processed, 1);
 
+#ifndef ENABLE_XDP_INGRESS
   {
-    __u32 gso_segs = skb->gso_segs;
+    __u32 gso_segs = ctx->gso_segs;
     if (gso_segs > 1) {
-      TUTU_LOG("ingress warning: cannot handle GSO Packets(%u): length: %u", gso_segs, skb->len);
+      TUTU_LOG("ingress warning: cannot handle GSO Packets(%u): length: %u", gso_segs, ctx->len);
       TUTU_LOG("  Please disable interface GSO");
       __sync_fetch_and_add(&cfg->gso, 1);
       return TC_ACT_SHOT;
     }
   }
+#endif
 
   struct in6_addr saddr, daddr;
 
@@ -1196,11 +1288,11 @@ int handle_ingress(struct __sk_buff *skb) {
     payload_len = bpf_ntohs(ipv6->payload_len) - (ip_len - sizeof(struct ipv6hdr)) - sizeof(struct icmp6hdr);
   }
 
-  // Create a UDP header in place of the ICMP header
   struct udphdr udp_hdr = {
     .source = udp_src,
     .dest   = udp_dst,
     .len    = bpf_htons(sizeof(struct udphdr) + payload_len),
+    .check  = 0,
   };
 
   struct icmphdr old_icmp;
@@ -1230,29 +1322,36 @@ int handle_ingress(struct __sk_buff *skb) {
   // 只有ipv4才需要修复ip头部检验和
   __u8 new_proto = IPPROTO_UDP;
   if (ipv4) {
-    err = update_ipv4_checksum(skb, ipv4, l2_len, IPPROTO_ICMP, new_proto);
+#ifdef ENABLE_XDP_INGRESS
+    ipv4->protocol = new_proto;
+    update_ipv4_checksum_xdp(ipv4, IPPROTO_ICMP, new_proto);
+#else
+    err = update_ipv4_checksum(ctx, ipv4, l2_len, IPPROTO_ICMP, new_proto);
     if (err) {
       __sync_fetch_and_add(&cfg->packets_dropped, 1);
       TUTU_LOG("update_ipv4_checksum failed: %d", err);
       return TC_ACT_SHOT;
     }
+
+    err = bpf_skb_store_bytes(ctx, ip_proto_offset, &new_proto, sizeof(new_proto), 0);
+
+    if (err) {
+      __sync_fetch_and_add(&cfg->packets_dropped, 1);
+      TUTU_LOG("bpf_skb_store_bytes failed: %d", err);
+      return TC_ACT_SHOT;
+    }
+#endif
   }
 
-  err = bpf_skb_store_bytes(skb, ip_proto_offset, &new_proto, sizeof(new_proto), 0);
-
-  if (err) {
-    __sync_fetch_and_add(&cfg->packets_dropped, 1);
-    TUTU_LOG("bpf_skb_store_bytes failed: %d", err);
-    return TC_ACT_SHOT;
-  }
-
-  // 写入字节之后， ipv4 & ipv6不再能访问
+#ifndef ENABLE_XDP_INGRESS
+  // TC-BPF: 写入字节之后， ipv4 & ipv6不再能访问
   // 需要重设指针
   if (ipv4) {
-    redecl_ok(struct iphdr, ipv4, l2_len, skb);
+    redecl_ok(struct iphdr, ipv4, l2_len, ctx);
   } else if (ipv6) {
-    redecl_ok(struct ipv6hdr, ipv6, l2_len, skb);
+    redecl_ok(struct ipv6hdr, ipv6, l2_len, ctx);
   }
+#endif
 
   _Static_assert(sizeof(struct icmphdr) == sizeof(struct udphdr), "ICMP and UDP header sizes must match");
   _Static_assert(sizeof(udp_hdr) == 8, "ICMP and UDP header sizes must match");
@@ -1267,13 +1366,21 @@ int handle_ingress(struct __sk_buff *skb) {
     update_udp_cksum(ipv4, ipv6, &udp_hdr, payload_sum);
   }
 
+#ifdef ENABLE_XDP_INGRESS
+#ifdef __mips__
+  __builtin_memcpy((void *) (volatile __u8 *) icmp, (const void *) (volatile __u8 *) &udp_hdr, sizeof(udp_hdr));
+#else
+  __builtin_memcpy(icmp, &udp_hdr, sizeof(udp_hdr));
+#endif
+#else
   // Replace ICMP header with UDP header
-  err = bpf_skb_store_bytes(skb, ip_end, &udp_hdr, sizeof(udp_hdr), 0);
+  err = bpf_skb_store_bytes(ctx, ip_end, &udp_hdr, sizeof(udp_hdr), 0);
   if (err) {
     __sync_fetch_and_add(&cfg->packets_dropped, 1);
     TUTU_LOG("bpf_skb_store_bytes failed: %d", err);
     return TC_ACT_SHOT;
   }
+#endif
 
   {
     TUTU_LOG("  Rebuilt UDP: 0x%016llx%016llx:%5u -> 0x%016llx%016llx:%5u, length: %u",
@@ -1283,7 +1390,13 @@ int handle_ingress(struct __sk_buff *skb) {
     // dump_skb(skb);
   }
 
-  err = TC_ACT_OK;
+  err =
+#ifdef ENABLE_XDP_INGRESS
+    XDP_PASS
+#else
+    TC_ACT_OK
+#endif
+    ;
 err_cleanup:
   return err;
 }

@@ -3,6 +3,7 @@
 
 #include <ctype.h>
 #include <getopt.h>
+#include <linux/if_link.h>
 #include <linux/limits.h>
 #include <net/if.h>
 #include <netinet/in.h>
@@ -993,8 +994,14 @@ int cmd_status(int argc, char **argv) {
 
     build_type_map_fd = try2(bpf_obj_get(BUILD_TYPE_MAP_PATH), _("bpf_obj_get: build_type_map: %s"), strret);
     try2(get_build_type_map(build_type_map_fd, &build_type), _("get build type map: %s"), strret);
-    printf("%s: Role: %s, BPF build type: %s, no-fixup: %s\n\n", STR(PROJECT_NAME), cfg.is_server ? "Server" : "Client",
-           build_type ? "Debug" : "Release", cfg.no_fixup ? "on" : "off");
+    printf("%s: Role: %s, BPF build type: %s, no-fixup: %s, xdp ingress: %s\n\n", STR(PROJECT_NAME),
+           cfg.is_server ? "Server" : "Client", build_type ? "Debug" : "Release", cfg.no_fixup ? "on" : "off",
+#ifdef ENABLE_XDP_INGRESS
+           "built-in"
+#else
+           "not built"
+#endif
+    );
   }
 
   if (cfg.is_server) {
@@ -1407,6 +1414,35 @@ static int detach_tc_bpf(int ifindex, enum bpf_tc_attach_point point) {
   return 0;
 }
 
+#ifdef ENABLE_XDP_INGRESS
+static int attach_xdp(int ifindex, int prog_fd) {
+  // XDP_FLAGS_UPDATE_IF_NOEXIST: 只有当没有 XDP 程序时才挂载
+  // XDP_FLAGS_SKB_MODE: 通用模式 (Generic/SKB mode)，兼容性好但性能稍差
+  // XDP_FLAGS_DRV_MODE: 驱动模式 (Native mode)，性能极高，需要网卡支持
+
+  // 建议默认尝试驱动模式，失败则回退到 SKB 模式，或者直接让内核自动选择 (0)
+  int flags = 0;
+
+  int err = bpf_xdp_attach(ifindex, prog_fd, flags, NULL);
+  if (err) {
+    fprintf(stderr, "XDP attach failed: %d\n", err);
+    return err;
+  }
+  return 0;
+}
+
+static int detach_xdp(int ifindex) {
+  int flags = 0;
+  // 传入 -1 作为 fd 表示卸载
+  int err = bpf_xdp_attach(ifindex, -1, flags, NULL);
+  if (err) {
+    fprintf(stderr, "XDP detach failed: %d\n", err);
+    return err;
+  }
+  return 0;
+}
+#endif
+
 static int print_load_usage(int argc, char **argv) {
   (void) argc;
   fprintf(stderr,
@@ -1537,7 +1573,11 @@ int cmd_load(int argc, char **argv) {
       continue;
     }
 
+#ifdef ENABLE_XDP_INGRESS
+    err = attach_xdp(ifindex, ingress_fd);
+#else
     err = attach_tc_bpf(ifindex, ingress_fd, BPF_TC_INGRESS);
+#endif
     if (err) {
       log_error("Failed to attach ingress on %s: %s", cur_iface, strerror(-err));
       continue;
@@ -1633,7 +1673,11 @@ int cmd_unload(int argc, char **argv) {
       goto err_cleanup;
     }
 
+#ifdef ENABLE_XDP_INGRESS
+    try2(detach_xdp(ifindex), _("detach_xdp: %s %s"), "ingress", strret);
+#else
     try2(detach_tc_bpf(ifindex, BPF_TC_INGRESS), _("detach_tc_bpf: %s %s"), "ingress", strret);
+#endif
     try2(detach_tc_bpf(ifindex, BPF_TC_EGRESS), _("detach_tc_bpf: %s %s"), "egress", strret);
   }
 

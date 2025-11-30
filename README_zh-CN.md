@@ -78,7 +78,10 @@ cd tutuicmptunnel
 cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_HARDEN_MODE=1 -DUSE_SYSTEM_LIBBPF_BPFTOOL=1 .
 ```
 
-注意：如果是`Ubuntu` 20.04，需要使用`git`版本的`libbpf`/`bpftool`，并且关闭`bpf timer`支持
+注意：
+
+- 若要追求极致性能，可以在 `CMake` 中添加选项 `-DENABLE_XDP_INGRESS=1`。不过要注意，调试时 `XDP ingress` 会在 `tcpdump` 之前修改 `ICMP` 报文，因此你在抓包时通常只能看到被处理成 `UDP` 的流量。
+- 如果是`Ubuntu` 20.04，需要使用`git`版本的`libbpf`/`bpftool`，并且关闭`bpf timer`支持
 
 ```sh
 cmake -DCMAKE_BUILD_TYPE=Release -DUSE_SYSTEM_LIBBPF_BPFTOOL=0 -DDISABLE_BPF_TIMER=1 -DBPF_CPU_VERSION="" .

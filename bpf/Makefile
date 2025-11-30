@@ -19,6 +19,9 @@ ifneq ($(strip $(BPF_CPU_VERSION)),)
 BPF_CFLAGS += -mcpu=$(BPF_CPU_VERSION)
 endif
 BPF_CFLAGS += -I../common -I. -I../libbpf/src/root/usr/include
+ifeq ($(ENABLE_XDP_INGRESS),1)
+BPF_CFLAGS += -DENABLE_XDP_INGRESS=1
+endif
 
 # BTF support
 USE_BTF ?= 1

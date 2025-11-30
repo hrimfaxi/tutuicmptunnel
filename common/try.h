@@ -16,6 +16,7 @@
     _ptr;                                                                                                                      \
   })
 #define redecl_skb(_type, _name, _off, _ctx, _ret) redecl(_type, _name, _off, _ctx, _ret, skb_data_end)
+#define redecl_xdp(_type, _name, _off, _ctx, _ret) redecl(_type, _name, _off, _ctx, _ret, xdp_data_end)
 
 #define redecl_ok(type, name, off, skb)   redecl_skb(type, name, off, skb, TC_ACT_OK)
 #define redecl_shot(type, name, off, skb) redecl_skb(type, name, off, skb, TC_ACT_SHOT)
@@ -180,6 +181,12 @@
 
 #define try2_p_ok(x, ...)   try2_p_ret(x, TC_ACT_OK, ##__VA_ARGS__)
 #define try2_p_shot(x, ...) try2_p_ret(x, TC_ACT_SHOT, ##__VA_ARGS__)
+
+#define try2_pass(x, ...) try2_ret(x, XDP_PASS, ##__VA_ARGS__)
+#define try2_drop(x, ...) try2_ret(x, XDP_DROP, ##__VA_ARGS__)
+
+#define try2_p_pass(x, ...) try2_p_ret(x, XDP_PASS, ##__VA_ARGS__)
+#define try2_p_drop(x, ...) try2_p_ret(x, XDP_DROP, ##__VA_ARGS__)
 
 // Tests pointer return value from a function, but return a different value when failed.
 #define try_p_ret(expr, ret)                                                                                                   \

@@ -82,7 +82,10 @@ Version: At least 24.10.1, please see the [OpenWrt Guide](docs/openwrt.md)
     cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_HARDEN_MODE=1 -DUSE_SYSTEM_LIBBPF_BPFTOOL=1 .
     ```
 
-    Note: For `Ubuntu` 20.04, you need to use the `git` version of `libbpf`/`bpftool` and disable `bpf timer` support.
+Note:
+
+- For peak performance, you can add the option `-DENABLE_XDP_INGRESS=1` in `CMake`. However, note that during debugging, `XDP ingress` modifies `ICMP` packets before `tcpdump` sees them, so you’ll typically only capture traffic that has been transformed into `UDP`.
+- For `Ubuntu` 20.04, you need to use the `git` version of `libbpf`/`bpftool` and disable `bpf timer` support.
 
     ```sh
     cmake -DCMAKE_BUILD_TYPE=Release -DUSE_SYSTEM_LIBBPF_BPFTOOL=0 -DDISABLE_BPF_TIMER=1 -DBPF_CPU_VERSION="" .

@@ -27,6 +27,8 @@ option(USE_LLVM_FOR_KMOD "Enable llvm for kmodule building" OFF)
 option(DISABLE_BPF_TIMER 0)
 message(STATUS "Disable BPF timer=${DISABLE_BPF_TIMER}")
 option(ENABLE_HARDEN_MODE "Enable security hardening compiler and linker flags" OFF)
+option(ENABLE_XDP_INGRESS "Enable XDP ingress mode" OFF)
+message(STATUS "Enable xdp ingress=${ENABLE_XDP_INGRESS}")
 set(BPF_CPU_VERSION "v3" CACHE STRING "BPF CPU version (empty, v1, v2, v3, v4 or probe)")
 message(STATUS "BPF CPU Version=${BPF_CPU_VERSION}")
 if (ENABLE_HARDEN_MODE)
@@ -80,6 +82,10 @@ if (ENABLE_HARDEN_MODE)
           -Wl,--gc-sections
     )
   endif()
+endif()
+
+if (ENABLE_XDP_INGRESS)
+  add_definitions(-DENABLE_XDP_INGRESS=1)
 endif()
 
 if (NOT USE_SYSTEM_LIBBPF_BPFTOOL)
@@ -149,7 +155,7 @@ if (NOT WIN32)
 
   add_custom_target(
     build_bpf
-    COMMAND BPF_CPU_VERSION=${BPF_CPU_VERSION} $(MAKE) ${MAKE_NOSILENT_ARG} -C ${PROJECT_SOURCE_DIR}/bpf ${BPF_ARCH_PARAM} BPFTOOL=${BPFTOOL} V=1
+    COMMAND ENABLE_XDP_INGRESS=${ENABLE_XDP_INGRESS} BPF_CPU_VERSION=${BPF_CPU_VERSION} $(MAKE) ${MAKE_NOSILENT_ARG} -C ${PROJECT_SOURCE_DIR}/bpf ${BPF_ARCH_PARAM} BPFTOOL=${BPFTOOL} V=1
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/bpf
     COMMENT "Building bpf"
   )
