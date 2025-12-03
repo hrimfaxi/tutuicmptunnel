@@ -12,6 +12,7 @@ cmake_install.cmake
 *.o
 
 *.rej
+.cache
 tuctl/uid_map_parser.h
 tuctl/uid_map_parser.c
 tuctl/uid_map_lexer.c
