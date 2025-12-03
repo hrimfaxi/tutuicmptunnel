@@ -75,7 +75,7 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
         // 本来如果没有使用硬件计算检验和bpf可以直接处理不需要调用本后门函数，但为了兼容错误配置起见还是替bpf修复检验和
         iph                        = ip_hdr(skb);
         struct icmphdr *icmph      = (typeof(icmph)) ((char *) iph + iph->ihl * 4);
-        size_t          ip_hdr_len = iph->ihl * 4;
+        size_t          ip_hdr_len = (size_t) (iph->ihl * 4);
         size_t          icmp_len   = ntohs(iph->tot_len) - ip_hdr_len;
 
         icmp_len = min_t(size_t, icmp_len, skb->len - l4_offset);
@@ -85,9 +85,9 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
           return 0;
 
         iph             = ip_hdr(skb);
-        icmph           = (typeof(icmph)) ((char *) iph + iph->ihl * 4);
+        icmph           = (typeof(icmph)) ((char *) iph + ip_hdr_len);
         icmph->checksum = 0;
-        icmph->checksum = csum_fold(csum_partial((char *) icmph, icmp_len, 0));
+        icmph->checksum = csum_fold(csum_partial((char *) icmph, (int) icmp_len, 0));
         skb->ip_summed  = CHECKSUM_UNNECESSARY;
       } else if (skb->ip_summed == CHECKSUM_PARTIAL) {
         // skb->csum_start: 不变，因为udp->icmp并没有修改包长度
@@ -112,7 +112,7 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
 
     // ICMPv6
     if (nexthdr == IPPROTO_ICMPV6) {
-      struct icmp6hdr *icmp6h      = (typeof(icmp6h)) (struct icmp6hdr *) (skb->data + l4_offset);
+      struct icmp6hdr *icmp6h      = (typeof(icmp6h)) (skb->data + l4_offset);
       unsigned int     ext_hdr_len = l4_offset - skb_network_offset(skb) - sizeof(struct ipv6hdr);
       unsigned int     icmp_len    = ntohs(ip6h->payload_len) - ext_hdr_len;
 
@@ -125,10 +125,10 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
           return 0;
 
         ip6h                = ipv6_hdr(skb);
-        icmp6h              = (typeof(icmp6h)) (struct icmp6hdr *) (skb->data + l4_offset);
+        icmp6h              = (typeof(icmp6h)) (skb->data + l4_offset);
         icmp6h->icmp6_cksum = 0;
         // 同样为了兼容性修复icmpv6检验和
-        __wsum csum = csum_partial((char *) icmp6h, icmp_len, 0);
+        __wsum csum = csum_partial((char *) icmp6h, (int) icmp_len, 0);
         // 计算 ICMPv6 校验和(带伪头部)
         icmp6h->icmp6_cksum = csum_ipv6_magic(&ip6h->saddr, &ip6h->daddr, icmp_len, IPPROTO_ICMPV6, csum);
         skb->ip_summed      = CHECKSUM_UNNECESSARY;
@@ -139,7 +139,7 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
           return 0;
 
         ip6h   = ipv6_hdr(skb);
-        icmp6h = (typeof(icmp6h)) (struct icmp6hdr *) (skb->data + l4_offset);
+        icmp6h = (struct icmp6hdr *) (skb->data + l4_offset);
         // 计算 ICMPv6 校验和: 只算icmpv6伪头部，让硬件完成整个检验和计算
         // 由于csum_ipv6_magic()结果是最终检验和，需要反转才得到icmpv6伪头部
         icmp6h->icmp6_cksum = ~csum_ipv6_magic(&ip6h->saddr, &ip6h->daddr, icmp_len, IPPROTO_ICMPV6, 0);

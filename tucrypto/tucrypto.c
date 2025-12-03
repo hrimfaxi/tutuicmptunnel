@@ -39,7 +39,7 @@ uint32_t tucrypto_randombytes_uniform(uint32_t upper_bound) {
 
   // 计算可接受阈值：最大 32bit 值中不产生偏差的上界
   // limit = floor((2^32 / upper_bound)) * upper_bound - 1
-  const uint32_t threshold = (uint32_t) (-upper_bound) % upper_bound;
+  const uint32_t threshold = (-upper_bound) % upper_bound;
   // 解释：-upper_bound 在无符号溢出中等于 2^32 - upper_bound，
   // 再对 upper_bound 取模得到 (2^32 % upper_bound)，
   // 等价于 2^32 - ((2^32 / upper_bound) * upper_bound)。

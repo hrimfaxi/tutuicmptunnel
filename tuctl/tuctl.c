@@ -1,7 +1,6 @@
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
-#include <ctype.h>
 #include <getopt.h>
 #include <linux/if_link.h>
 #include <linux/limits.h>
@@ -1566,8 +1565,7 @@ int cmd_load(int argc, char **argv) {
     int         ifindex;
 
     log_info("Configuring TC for interface: %s", cur_iface);
-
-    ifindex = if_nametoindex(cur_iface);
+    ifindex = (int) if_nametoindex(cur_iface);
     if (ifindex == 0) {
       log_error("Invalid interface: %s", cur_iface);
       continue;
@@ -1666,7 +1664,7 @@ int cmd_unload(int argc, char **argv) {
     int         ifindex;
 
     log_info("Deconfiguring TC for interface: %s", cur_iface);
-    ifindex = if_nametoindex(cur_iface);
+    ifindex = (int) if_nametoindex(cur_iface);
     if (ifindex == 0) {
       log_error("Invalid interface: %s", cur_iface);
       err = -ENOENT;

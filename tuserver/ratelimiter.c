@@ -8,16 +8,16 @@
 static inline uint64_t mono_ns(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (uint64_t) ts.tv_sec * 1000000000ull + (uint64_t) ts.tv_nsec;
+  return (uint64_t) ts.tv_sec * 1000000000ULL + (uint64_t) ts.tv_nsec;
 }
 
 // 简单 FNV-1a 64-bit
 static uint64_t fnv1a64(const void *data, size_t len) {
   const uint8_t *p = (const uint8_t *) data;
-  uint64_t       h = 1469598103934665603ull;
+  uint64_t       h = 1469598103934665603ULL;
   for (size_t i = 0; i < len; i++) {
     h ^= p[i];
-    h *= 1099511628211ull;
+    h *= 1099511628211ULL;
   }
   return h;
 }
@@ -64,11 +64,12 @@ static int key_equal(const rl_key_t *k, const rl_entry_t *e) {
   if (k->port != e->port)
     return 0;
 #endif
-  if (k->family == AF_INET) {
+  if (k->family == AF_INET)
     return memcmp(&k->addr.v4, &e->addr.v4, sizeof(struct in_addr)) == 0;
-  } else if (k->family == AF_INET6) {
+
+  if (k->family == AF_INET6)
     return memcmp(&k->addr.v6, &e->addr.v6, sizeof(struct in6_addr)) == 0;
-  }
+
   return 0;
 }
 
@@ -97,14 +98,14 @@ int rl_allow(rate_limiter_t *rl, const struct sockaddr_storage *sa) {
       break;
     }
     // 记录一个可淘汰的旧条目
-    if ((now - e->last_seen_ns) > (uint64_t) RL_IDLE_EVICT_SEC * 1000000000ull) {
+    if ((now - e->last_seen_ns) > (uint64_t) RL_IDLE_EVICT_SEC * 1000000000ULL) {
       evict_idx = (int) idx;
     }
     if (key_equal(&key, e)) {
       // 补充令牌
       double dt = (double) (now - e->last_refill_ns) / 1e9;
       if (dt > 0) {
-        e->tokens = e->tokens + dt * RL_REFILL_RATE;
+        e->tokens += dt * RL_REFILL_RATE;
         if (e->tokens > RL_BURST_TOKENS)
           e->tokens = RL_BURST_TOKENS;
         e->last_refill_ns = now;
@@ -113,9 +114,9 @@ int rl_allow(rate_limiter_t *rl, const struct sockaddr_storage *sa) {
       if (e->tokens >= 1.0) {
         e->tokens -= 1.0;
         return 1; // 允许
-      } else {
-        return 0; // 无令牌，丢包
       }
+
+      return 0; // 无令牌，丢包
     }
   }
 

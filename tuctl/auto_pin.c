@@ -4,14 +4,12 @@
 #include <errno.h>
 #include <linux/limits.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include "log.h"
 #include "try.h"
-#include "tuctl.h"
 
 #include "tutuicmptunnel.debug.skel.h"
 #include "tutuicmptunnel.skel.h"

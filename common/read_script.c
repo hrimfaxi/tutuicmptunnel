@@ -77,7 +77,7 @@ int read_script(const char *path, char **out, size_t *out_len) {
     err = -EOVERFLOW;
     goto err_cleanup;
   }
-  rewind(fp);
+  try2(fseek(fp, 0, SEEK_SET), "fseek: %s", strret);
 
   size = (size_t) file_size;
   buf  = try2_p(malloc(size + 1), "malloc failed");

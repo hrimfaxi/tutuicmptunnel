@@ -62,7 +62,9 @@ int resolve_ip_addr(int family, const char *address, struct in6_addr *out_addr) 
       *out_addr                 = sin6->sin6_addr;
       found                     = 1;
       break;
-    } else if (p->ai_family == AF_INET && (family == AF_UNSPEC || family == AF_INET)) {
+    }
+
+    if (p->ai_family == AF_INET && (family == AF_UNSPEC || family == AF_INET)) {
       struct sockaddr_in *sin = (struct sockaddr_in *) p->ai_addr;
       ipv4_to_in6addr(sin->sin_addr.s_addr, out_addr);
       found = 1;
