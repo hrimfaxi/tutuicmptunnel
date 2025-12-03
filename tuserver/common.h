@@ -33,9 +33,9 @@ struct replay_entry {
 };
 
 struct replay_window {
-  int              window; // 秒
-  int              max_size;
-  int              count;
+  uint32_t         window; // 秒
+  uint32_t         max_size;
+  uint32_t         count;
   struct list_head head;
 };
 
@@ -51,7 +51,7 @@ int decrypt_and_validate_packet(uint8_t *pt_out, unsigned long long *pt_len_out,
 void setup_pwhash_memlimit(void);
 
 // 重放相关
-void replay_window_init(struct replay_window *rw, int window, int max_size);
+void replay_window_init(struct replay_window *rw, uint32_t window, uint32_t max_size);
 void replay_window_free(struct replay_window *rw);
 int  replay_check(struct replay_window *rw, time_t ts, const uint8_t nonce[NONCE_LEN]);
 int  replay_add(struct replay_window *rw, time_t ts, const uint8_t nonce[NONCE_LEN]);

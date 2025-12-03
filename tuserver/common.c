@@ -80,7 +80,7 @@ int remove_padding(uint8_t *pt, unsigned long long *pt_len) {
   return 0;
 }
 
-void replay_window_init(struct replay_window *rw, int window, int max_size) {
+void replay_window_init(struct replay_window *rw, uint32_t window, uint32_t max_size) {
   rw->window   = window;
   rw->max_size = max_size;
   rw->count    = 0;
@@ -306,9 +306,9 @@ size_t scnprintf(char *buf, size_t size, const char *fmt, ...) {
 
   if ((size_t) n >= size) {
     return size - 1;
-  } else {
-    return (size_t) n;
   }
+
+  return (size_t) n;
 }
 
 /* 返回 0 表示成功；若被信号中断，会自动继续睡到足时 */
