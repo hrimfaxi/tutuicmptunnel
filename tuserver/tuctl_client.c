@@ -20,7 +20,7 @@ typedef struct {
   char    *server;
   int      server_port;
   int      family;
-  int      window;
+  uint32_t window;
   uint16_t max_retries;
 } args_t;
 
