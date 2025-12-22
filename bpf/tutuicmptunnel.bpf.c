@@ -704,21 +704,21 @@ int link_type = LINK_AUTODETECT;
  *  - skb: 指向 skb 上下文的指针。
  *  - ip_type: [输出] ip协议类型: 4或者6
  *  - l2_len: [输出] L2 头部长度。
- *  - ip_len: [输出] L3 头部长度 (IPv4 或 IPv6 + 扩展头)。
+ *  - ip_hdr_len: [输出] L3 头部长度 (IPv4 或 IPv6 + 扩展头)。
  *  - ip_proto: [输出] L4 协议的值 (例如 IPPROTO_UDP)。
  *  - ip_proto_offset: [输出] 指向L4协议的字段(ip.protocol或最后一个ipv6.nexthdr)的偏移量，从数据包起始计算。
- *  - hdr_len: [输出] 从数据包开始到 L4 头部起始位置的总偏移量 (l2_len + ip_len)。
+ *  - hdr_len: [输出] 从数据包开始到 L4 头部起始位置的总偏移量 (l2_len + ip_hdr_len)。
  *
  * 返回值:
  *  - 0: 成功。
  *  - -1: 失败（包太短、未知协议等）。
  */
-static __always_inline int parse_headers(struct __sk_buff *skb, __u32 *ip_type, __u32 *l2_len, __u32 *ip_len, __u8 *ip_proto,
-                                         __u32 *ip_proto_offset, __u32 *hdr_len) {
+static __always_inline int parse_headers(struct __sk_buff *skb, __u32 *ip_type, __u32 *l2_len, __u32 *ip_hdr_len,
+                                         __u8 *ip_proto, __u32 *ip_proto_offset, __u32 *hdr_len) {
   void *data, *data_end;
   bool  has_eth;
 
-  *ip_type = *l2_len = *ip_len = *ip_proto_offset = *hdr_len = *ip_proto = 0;
+  *ip_type = *l2_len = *ip_hdr_len = *ip_proto_offset = *hdr_len = *ip_proto = 0;
 
   // 1. 判断是否存在以太网头
   switch (link_type) {
@@ -750,7 +750,7 @@ static __always_inline int parse_headers(struct __sk_buff *skb, __u32 *ip_type, 
     data_end = (void *) (long) skb->data_end;
   }
 
-  return _parse_headers(data, data_end, has_eth, ip_type, l2_len, ip_len, ip_proto, ip_proto_offset, hdr_len);
+  return _parse_headers(data, data_end, has_eth, ip_type, l2_len, ip_hdr_len, ip_proto, ip_proto_offset, hdr_len);
 }
 
 static __always_inline int update_ipv4_checksum(struct __sk_buff *skb, struct iphdr *ipv4, __u32 l2_len, __u32 old_proto,
@@ -767,7 +767,7 @@ static __always_inline int update_ipv4_checksum(struct __sk_buff *skb, struct ip
 SEC("tc/egress")
 int handle_egress(struct __sk_buff *skb) {
   int   err;
-  __u32 ip_end = 0, ip_proto_offset = 0, l2_len, ip_len, ip_type;
+  __u32 ip_end = 0, ip_proto_offset = 0, l2_len, ip_hdr_len, ip_type;
   __u8  ip_proto;
   // 更新统计
   struct config *cfg;
@@ -777,7 +777,7 @@ int handle_egress(struct __sk_buff *skb) {
     cfg       = try2_p_ok(bpf_map_lookup_elem(&config_map, &key), "config_map cannot be found");
   }
 
-  try_ok(parse_headers(skb, &ip_type, &l2_len, &ip_len, &ip_proto, &ip_proto_offset, &ip_end));
+  try_ok(parse_headers(skb, &ip_type, &l2_len, &ip_hdr_len, &ip_proto, &ip_proto_offset, &ip_end));
   try_ok(ip_proto == IPPROTO_UDP ? 0 : -1);
   // 重新pull 整个以太网+ip头部+udp头部
   // 不需要整个udp包：因为udp负载没有被修改过，也不需要检查udp负载长度
@@ -1088,10 +1088,10 @@ static __always_inline void update_udp_cksum(struct iphdr *ipv4, struct ipv6hdr 
 }
 
 #ifdef ENABLE_XDP_INGRESS
-static __always_inline int parse_headers_xdp(void *data, void *data_end, __u32 *ip_type, __u32 *l2_len, __u32 *ip_len,
+static __always_inline int parse_headers_xdp(void *data, void *data_end, __u32 *ip_type, __u32 *l2_len, __u32 *ip_hdr_len,
                                              __u8 *ip_proto, __u32 *ip_proto_offset, __u32 *hdr_len) {
-  *ip_type = *l2_len = *ip_len = *ip_proto_offset = *hdr_len = *ip_proto = 0;
-  return _parse_headers(data, data_end, true, ip_type, l2_len, ip_len, ip_proto, ip_proto_offset, hdr_len);
+  *ip_type = *l2_len = *ip_hdr_len = *ip_proto_offset = *hdr_len = *ip_proto = 0;
+  return _parse_headers(data, data_end, true, ip_type, l2_len, ip_hdr_len, ip_proto, ip_proto_offset, hdr_len);
 }
 
 static __always_inline int update_ipv4_checksum_xdp(struct iphdr *iph, __u8 old_proto, __u8 new_proto) {
@@ -1107,14 +1107,14 @@ static __always_inline int update_ipv4_checksum_xdp(struct iphdr *iph, __u8 old_
 }
 #endif
 
-static __always_inline int parse_headers_ingress(void *ctx, __u32 *ip_type, __u32 *l2_len, __u32 *ip_len, __u8 *ip_proto,
+static __always_inline int parse_headers_ingress(void *ctx, __u32 *ip_type, __u32 *l2_len, __u32 *ip_hdr_len, __u8 *ip_proto,
                                                  __u32 *ip_proto_offset, __u32 *ip_end) {
 #ifdef ENABLE_XDP_INGRESS
   void *data     = (void *) (long) ((struct xdp_md *) ctx)->data;
   void *data_end = (void *) (long) ((struct xdp_md *) ctx)->data_end;
   int   err;
 
-  err = parse_headers_xdp(data, data_end, ip_type, l2_len, ip_len, ip_proto, ip_proto_offset, ip_end);
+  err = parse_headers_xdp(data, data_end, ip_type, l2_len, ip_hdr_len, ip_proto, ip_proto_offset, ip_end);
   if (err)
     return err;
 
@@ -1123,7 +1123,7 @@ static __always_inline int parse_headers_ingress(void *ctx, __u32 *ip_type, __u3
 
   return 0;
 #else
-  return parse_headers((struct __sk_buff *) ctx, ip_type, l2_len, ip_len, ip_proto, ip_proto_offset, ip_end);
+  return parse_headers((struct __sk_buff *) ctx, ip_type, l2_len, ip_hdr_len, ip_proto, ip_proto_offset, ip_end);
 #endif
 }
 
@@ -1166,7 +1166,7 @@ int handle_ingress(
 
 ) {
   int            err;
-  __u32          ip_end = 0, ip_proto_offset = 0, l2_len, ip_len, ip_type;
+  __u32          ip_end = 0, ip_proto_offset = 0, l2_len, ip_hdr_len, ip_type;
   __u8           ip_proto;
   struct config *cfg;
 
@@ -1177,7 +1177,7 @@ int handle_ingress(
     cfg       = try2_p_ok(bpf_map_lookup_elem(&config_map, &key));
   }
 
-  try2_ok(parse_headers_ingress(ctx, &ip_type, &l2_len, &ip_len, &ip_proto, &ip_proto_offset, &ip_end));
+  try2_ok(parse_headers_ingress(ctx, &ip_type, &l2_len, &ip_hdr_len, &ip_proto, &ip_proto_offset, &ip_end));
   try2_ok(ip_proto == IPPROTO_ICMP || ip_proto == IPPROTO_ICMPV6 ? 0 : -1);
 
 #ifndef ENABLE_XDP_INGRESS
@@ -1197,7 +1197,7 @@ int handle_ingress(
 
   {
     // 至少应该有l3头部长度再加上icmp头部
-    u32 least_size = ip_len + sizeof(struct icmphdr);
+    u32 least_size = ip_hdr_len + sizeof(struct icmphdr);
 
     // 检查ipv4/ipv6报文长度是否合理
     if (ipv4) {
@@ -1208,7 +1208,7 @@ int handle_ingress(
       }
     } else if (ipv6) {
       // 守护
-      if (ip_len < sizeof(struct ipv6hdr)) {
+      if (ip_hdr_len < sizeof(struct ipv6hdr)) {
         err = xmit_ingress_ok();
         goto err_cleanup;
       }
@@ -1324,10 +1324,10 @@ int handle_ingress(
   __u16 payload_len = 0;
 
   if (ipv4) {
-    payload_len = bpf_ntohs(ipv4->tot_len) - ip_len - sizeof(struct icmphdr);
+    payload_len = bpf_ntohs(ipv4->tot_len) - ip_hdr_len - sizeof(struct icmphdr);
   } else if (ipv6) {
-    // ip_len需要减去ipv6头部,因为ipv6的长度是负载长度(不包括ipv6头)
-    payload_len = bpf_ntohs(ipv6->payload_len) - (ip_len - sizeof(struct ipv6hdr)) - sizeof(struct icmp6hdr);
+    // 先还原出IPv6包的物理总长(包含基本头)，再减去已解析的L3头和ICMPv6头
+    payload_len = sizeof(struct ipv6hdr) + bpf_ntohs(ipv6->payload_len) - ip_hdr_len - sizeof(struct icmp6hdr);
   }
 
   struct udphdr udp_hdr = {
