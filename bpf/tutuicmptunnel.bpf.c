@@ -599,7 +599,7 @@ static __always_inline int check_age(struct config *cfg, struct session_key *loo
 }
 
 static __always_inline int _parse_headers(void *data, void *data_end, bool has_eth, __u32 *ip_type, __u32 *l2_len,
-                                          __u32 *ip_len, __u8 *ip_proto, __u32 *ip_proto_offset, __u32 *hdr_len) {
+                                          __u32 *ip_hdr_len, __u8 *ip_proto, __u32 *ip_proto_offset, __u32 *hdr_len) {
   __u32          local_l2_len = 0;
   struct ethhdr *eth;
 
@@ -638,15 +638,15 @@ handle_ipv4: {
   if ((void *) (ipv4 + 1) > data_end)
     return -1;
 
-  __u32 local_ip_len = ipv4->ihl * 4;
-  if (local_ip_len < sizeof(*ipv4) || data + local_l2_len + local_ip_len > data_end)
+  __u32 local_ip_hdr_len = ipv4->ihl * 4;
+  if (local_ip_hdr_len < sizeof(*ipv4) || data + local_l2_len + local_ip_hdr_len > data_end)
     return -1;
 
   *ip_type         = 4;
   *ip_proto        = ipv4->protocol;
-  *ip_len          = local_ip_len;
+  *ip_hdr_len      = local_ip_hdr_len;
   *l2_len          = local_l2_len;
-  *hdr_len         = local_l2_len + local_ip_len;
+  *hdr_len         = local_l2_len + local_ip_hdr_len;
   *ip_proto_offset = local_l2_len + offsetof(struct iphdr, protocol);
   return 0;
 }
@@ -682,7 +682,7 @@ handle_ipv6: {
 
   *ip_type         = 6;
   *ip_proto        = next_hdr;
-  *ip_len          = current_hdr_start - local_l2_len;
+  *ip_hdr_len      = current_hdr_start - local_l2_len;
   *l2_len          = local_l2_len;
   *hdr_len         = current_hdr_start;
   *ip_proto_offset = proto_offset;
@@ -785,6 +785,12 @@ int handle_egress(struct __sk_buff *skb) {
 
   decl_ok(struct udphdr, udp, ip_end, skb);
 
+  // 非法的udp长度
+  if (bpf_ntohs(udp->len) < sizeof(*udp)) {
+    err = TC_ACT_OK;
+    goto err_cleanup;
+  }
+
   struct iphdr   *ipv4 = NULL;
   struct ipv6hdr *ipv6 = NULL;
 
@@ -808,8 +814,8 @@ int handle_egress(struct __sk_buff *skb) {
     (void) saddr;
     (void) daddr;
     (void) udp_payload_len;
-    TUTU_LOG("Outgoing UDP: %08x:%5d -> %08x:%5d, length: %u", bpf_htonl(saddr), bpf_htons(udp->source), bpf_htonl(daddr),
-             bpf_htons(udp->dest), udp_payload_len);
+    TUTU_LOG("Outgoing UDP: %08x:%5d -> %08x:%5d, length: %u", bpf_ntohl(saddr), bpf_ntohs(udp->source), bpf_ntohl(daddr),
+             bpf_ntohs(udp->dest), udp_payload_len);
   } else if (ipv6) {
     // UDP payload length
     // TODO
@@ -824,8 +830,8 @@ int handle_egress(struct __sk_buff *skb) {
     (void) udp_payload_len;
     TUTU_LOG("Outgoing UDP: %016llx%016llx:%5u -> %016llx%016llx:%5u, length: %u",
              bpf_be64_to_cpu(*(__be64 *) &saddr.s6_addr[0]), bpf_be64_to_cpu(*(__be64 *) &saddr.s6_addr[8]),
-             bpf_htons(udp->source), bpf_be64_to_cpu(*(__be64 *) &daddr.s6_addr[0]),
-             bpf_be64_to_cpu(*(__be64 *) &daddr.s6_addr[8]), bpf_htons(udp->dest), udp_payload_len);
+             bpf_ntohs(udp->source), bpf_be64_to_cpu(*(__be64 *) &daddr.s6_addr[0]),
+             bpf_be64_to_cpu(*(__be64 *) &daddr.s6_addr[8]), bpf_ntohs(udp->dest), udp_payload_len);
   }
 #endif
 
@@ -1135,6 +1141,16 @@ static __always_inline int parse_headers_ingress(void *ctx, __u32 *ip_type, __u3
 #define redecl_ok redecl_pass
 #endif
 
+static inline int xmit_ingress_ok(void) {
+  return
+#ifdef ENABLE_XDP_INGRESS
+    XDP_PASS
+#else
+    TC_ACT_OK
+#endif
+    ;
+}
+
 // Incoming packet handler (ICMP -> UDP)
 #ifdef ENABLE_XDP_INGRESS
 SEC("xdp.frags")
@@ -1177,6 +1193,32 @@ int handle_ingress(
     redecl_ok(struct iphdr, ipv4, l2_len, ctx);
   } else if (ip_type == 6) {
     redecl_ok(struct ipv6hdr, ipv6, l2_len, ctx);
+  }
+
+  {
+    // 至少应该有l3头部长度再加上icmp头部
+    u32 least_size = ip_len + sizeof(struct icmphdr);
+
+    // 检查ipv4/ipv6报文长度是否合理
+    if (ipv4) {
+      // IPv4: icmp报文全长必须足够
+      if (bpf_ntohs(ipv4->tot_len) < least_size) {
+        err = xmit_ingress_ok();
+        goto err_cleanup;
+      }
+    } else if (ipv6) {
+      // 守护
+      if (ip_len < sizeof(struct ipv6hdr)) {
+        err = xmit_ingress_ok();
+        goto err_cleanup;
+      }
+      // IPV6的payload_len: 不包括基本头部的剩余数据包长度
+      // 加上ipv6头部后必须足够
+      if (sizeof(struct ipv6hdr) + bpf_ntohs(ipv6->payload_len) < least_size) {
+        err = xmit_ingress_ok();
+        goto err_cleanup;
+      }
+    }
   }
 
   decl_ok(struct icmphdr, icmp, ip_end, ctx);
@@ -1390,13 +1432,7 @@ int handle_ingress(
     // dump_skb(skb);
   }
 
-  err =
-#ifdef ENABLE_XDP_INGRESS
-    XDP_PASS
-#else
-    TC_ACT_OK
-#endif
-    ;
+  err = xmit_ingress_ok();
 err_cleanup:
   return err;
 }
