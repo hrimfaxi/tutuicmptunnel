@@ -225,6 +225,7 @@ Note:
 | [xray+kcptun](docs/xray_kcptun.md)        | A combination of the Xray core and the KCPtun protocol, used to accelerate and stabilize network connections. |
 | [wireguard](docs/wireguard.md)            | A modern, high-performance, and easy-to-configure secure VPN tunnel.                                     |
 | [openwrt](docs/openwrt.md)                | A highly customizable Linux operating system for embedded devices, especially routers.                   |
+| [mosh](docs/mosh.md)                      | Roaming shell over UDP, launched via SSH; supports reconnection                                                |
 
 ## Acknowledgements
 

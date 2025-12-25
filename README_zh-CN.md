@@ -223,6 +223,7 @@ Peers:
 | [xray+kcptun](docs/xray_kcptun.md) | Xray 核心与 KCPtun 协议的组合，用于加速和稳定网络连接。 |
 | [wireguard](docs/wireguard.md) | 一个现代化、高性能且配置简单的安全 VPN 隧道。 |
 | [openwrt](docs/openwrt.md) | 针对嵌入式设备（尤其是路由器）的高度可定制化 Linux 操作系统。 |
+| [mosh](docs/mosh.md) |  基于 SSH 启动、以 UDP 传输的漫游 Shell，支持断线重连并在高延迟/抖动网络下保持交互顺畅。 |
 
 ## 致谢
 
