@@ -4,6 +4,9 @@
 #include <string.h>
 #include <stdio.h>
 
+/* 若最后一行没有以 EOL/; 结束，则在 EOF 时补一个 EOL 让 parser 收尾 */
+static int last_was_terminator = 1;
+
 static char *safe_strdup(const char *s) {
   char *p = strdup(s);
   if (!p) {
@@ -35,8 +38,8 @@ static char *safe_strdup(const char *s) {
 #[^\n]* { /* 忽略注释内容 */ }
 
   /* 3. 命令分隔符 */
-";" { return SEMICOLON; }
-\n  { return EOL; }
+";" { last_was_terminator = 1; return SEMICOLON; }
+\n  { last_was_terminator = 1; return EOL; }
 
   /* 4. 带双引号的字符串 */
 \"[^"\n]*\" {
@@ -44,6 +47,7 @@ static char *safe_strdup(const char *s) {
   char *p = safe_strdup(yytext + 1);
   p[strlen(p)-1] = 0;
   script_lval.sval = p;
+  last_was_terminator = 0;
   return STRING;
 }
 
@@ -52,19 +56,30 @@ static char *safe_strdup(const char *s) {
   char *p = safe_strdup(yytext + 1);
   p[strlen(p)-1] = 0;
   script_lval.sval = p;
+  last_was_terminator = 0;
   return STRING;
 }
 
   /* 6. 普通单词/参数 */
 [^ \t\n;"]+ {
   script_lval.sval = safe_strdup(yytext);
+  last_was_terminator = 0;
   return WORD;
 }
 
   /* 7. 忽略空白 */
 [ \t]+ { /* 忽略 */ }
 
-  /* 8. 错误处理 */
+  /* 8. EOF：若最后一行未以 EOL/; 结束，补一个 EOL */
+<<EOF>> {
+  if (!last_was_terminator) {
+    last_was_terminator = 1;
+    return EOL;
+  }
+  return 0; /* EOF */
+}
+
+  /* 9. 错误处理 */
 . { log_error("Unexpected character: %c at line %d", *yytext, yylineno); }
 
 %%
