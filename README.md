@@ -222,6 +222,7 @@ Note:
 | :---------------------------------------- | :------------------------------------------------------------------------------------------------------- |
 | [iperf3](docs/iperf3.md)                  | A powerful network performance testing tool used to measure bandwidth, jitter, and packet loss.            |
 | [hysteria](docs/hysteria.md)              | A proxy tool based on the QUIC protocol, optimized for unstable and high-loss networks.                  |
+| [shadowquic](docs/shadowquic.md) | A proxy tool based on rust and the QUIC protocol, optimized for unstable and high-loss networks.                  |
 | [xray+kcptun](docs/xray_kcptun.md)        | A combination of the Xray core and the KCPtun protocol, used to accelerate and stabilize network connections. |
 | [wireguard](docs/wireguard.md)            | A modern, high-performance, and easy-to-configure secure VPN tunnel.                                     |
 | [openwrt](docs/openwrt.md)                | A highly customizable Linux operating system for embedded devices, especially routers.                   |
@@ -232,6 +233,7 @@ Note:
 During its design, implementation, and performance tuning, `tutuicmptunnel` has referenced and benefited from numerous excellent open-source projects and technical articles. We extend our sincere gratitude to their authors and community contributors!
 
 * [hysteria](https://github.com/apernet/hysteria)
+* [shadowquic](https://github.com/spongebob888/shadowquic)
 * [kcptun](https://github.com/xtaci/kcptun)
 * [xray-core](https://github.com/XTLS/Xray-core)
 * [udp2raw](https://github.com/wangyu-/udp2raw)
