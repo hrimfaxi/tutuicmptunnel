@@ -220,6 +220,7 @@ Peers:
 | :--- | :--- |
 | [iperf3](docs/iperf3.md) | 一款强大的网络性能测试工具，用于测量带宽、抖动和丢包。 |
 | [hysteria](docs/hysteria.md) | 基于 QUIC 协议的代理工具，专为不稳定和高丢包网络优化。 |
+| [shadowquic](docs/shadowquic.md) | 基于 rust和QUIC 协议的代理工具，专为不稳定和高丢包网络优化。 |
 | [xray+hysteria](docs/xray_hysteria.md) | Xray 核心与 Hysteria 协议的组合，用于加速和稳定网络连接。 |
 | [xray+kcptun](docs/xray_kcptun.md) | Xray 核心与 KCPtun 协议的组合，用于加速和稳定网络连接。 |
 | [wireguard](docs/wireguard.md) | 一个现代化、高性能且配置简单的安全 VPN 隧道。 |
@@ -231,6 +232,7 @@ Peers:
 `tutuicmptunnel`在设计、实现和性能调优过程中，参考并受益于大量优秀的开源项目和技术文章。谨向它们的作者及社区贡献者致以诚挚感谢！
 
 * [hysteria](https://github.com/apernet/hysteria)
+* [shadowquic](https://github.com/spongebob888/shadowquic)
 * [kcptun](https://github.com/xtaci/kcptun)
 * [xray-core](https://github.com/XTLS/Xray-core)
 * [udp2raw](https://github.com/wangyu-/udp2raw)

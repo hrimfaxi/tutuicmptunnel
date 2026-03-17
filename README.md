@@ -53,7 +53,7 @@ Version: At least 20.04, with version 24.04 LTS or newer recommended.
 Dependencies:
 
 ```sh
-sudo apt install -y git libbpf-dev clang llvm cmake libsodium-dev dkms linux-tools libsodium-dev libelf-dev flex bison
+sudo apt install -y git libbpf-dev clang llvm cmake libsodium-dev dkms linux-tools libsodium-dev libelf-dev flex bison cmake pkg-config
 ```
 
 Note: If you are not using the standard `ubuntu` kernel, please install the corresponding `linux-tools` for your kernel.
@@ -66,7 +66,7 @@ Version: Latest is sufficient
 Dependency Preparation:
 
 ```sh
-sudo pacman -S git base-devel libbpf clang cmake libsodium dkms libsodium flex bison
+sudo pacman -S git base-devel libbpf clang cmake libsodium dkms libsodium flex bison cmake pkg-config
 ```
 ### `Openwrt`
 
@@ -222,6 +222,7 @@ Note:
 | :---------------------------------------- | :------------------------------------------------------------------------------------------------------- |
 | [iperf3](docs/iperf3.md)                  | A powerful network performance testing tool used to measure bandwidth, jitter, and packet loss.            |
 | [hysteria](docs/hysteria.md)              | A proxy tool based on the QUIC protocol, optimized for unstable and high-loss networks.                  |
+| [shadowquic](docs/shadowquic.md) | A proxy tool based on rust and the QUIC protocol, optimized for unstable and high-loss networks.                  |
 | [xray+hysteria](docs/xray_hysteria.md)    | A combination of the Xray core and the Hysteria protocol, used to accelerate and stabilize network connections. |
 | [xray+kcptun](docs/xray_kcptun.md)        | A combination of the Xray core and the KCPtun protocol, used to accelerate and stabilize network connections. |
 | [wireguard](docs/wireguard.md)            | A modern, high-performance, and easy-to-configure secure VPN tunnel.                                     |
@@ -233,6 +234,7 @@ Note:
 During its design, implementation, and performance tuning, `tutuicmptunnel` has referenced and benefited from numerous excellent open-source projects and technical articles. We extend our sincere gratitude to their authors and community contributors!
 
 * [hysteria](https://github.com/apernet/hysteria)
+* [shadowquic](https://github.com/spongebob888/shadowquic)
 * [kcptun](https://github.com/xtaci/kcptun)
 * [xray-core](https://github.com/XTLS/Xray-core)
 * [udp2raw](https://github.com/wangyu-/udp2raw)
