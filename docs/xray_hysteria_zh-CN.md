@@ -125,8 +125,8 @@ TMP=$(mktemp)
 export DEV=enp4s0 # 你的客户端上网接口名
 
 sudo tuctl dump > "$TMP"
-sudo rmmod tutuicmptunnel
-sudo modprobe tutuicmptunnel
+sudo rmmod tutu_csum_fixup
+sudo modprobe tutu_csum_fixup
 
 export TUTU_UID=your_user_name   # 替换为服务器上选好的 uid
 export ADDRESS=your-server.example.com # 替换为你的服务端域名或 IP
