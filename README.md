@@ -44,6 +44,46 @@ To facilitate dynamic updates, the `tuctl_client` tool can be used to synchroniz
 
 `tuctl_server` and `tuctl_client` communicate over UDP, using a timestamp-based mechanism combined with the `XChaCha20-Poly1305` encryption algorithm, `Argon2id` key derivation function, and a Pre-Shared Key (`PSK`) for secure authentication. This scheme enables clients to securely and efficiently notify the server of new configuration information in real-time.
 
+## Preparation for Evaluation
+
+### Step 0: Evaluate ICMP Path Performance
+
+Before deploying `tutuicmptunnel`, first verify whether the current path is suitable for carrying ICMP tunnel traffic. The core idea is simple: compare ICMP and UDP under the same network conditions.
+
+1. Run an ICMP/UDP comparison test
+
+Use the following methods to stress-test or measure throughput on the path:
+
+- Use `ping -f` or other ICMP flood methods to observe ICMP responsiveness and packet loss
+- Use `iperf3 -u -c ...` to measure UDP performance for comparison
+
+If the results show that:
+
+- ICMP is clearly better than UDP in terms of stability, throughput, or latency
+
+then the path is usually a good candidate for deploying `tutuicmptunnel`, and you can proceed.
+
+2. If ICMP performance is worse than expected
+
+If ICMP does not outperform UDP, or is even significantly worse, then there may be other factors interfering with the test. In that case, inspect the intermediate devices on the path first. Common issues include:
+
+- Poorly implemented or low-performance home ONTs/modems
+- Various so-called "enterprise-grade" firewalls, traffic management appliances, or other gateways that treat ICMP specially
+
+One thing to pay special attention to is that on some of these devices, even if the web interface says the firewall is "disabled", there may still be filtering, rate limiting, or policy logic active underneath that cannot actually be turned off. In other words, it may look disabled while still interfering with ICMP traffic.
+
+These devices may rate-limit, shape, deprioritize, or otherwise mishandle ICMP, leading to misleading test results.
+
+3. Retest after removing intermediate interference
+
+In this case, try to:
+
+- Remove the problematic modem/ONT
+- Bypass or eliminate the firewall or gateway devices involved
+- Make the test path as close to a "bare network" path as possible
+
+Then repeat Step 1. Only after removing the effects of these intermediate devices can you accurately determine whether the path is suitable for deploying `tutuicmptunnel`.
+
 ## OS Requirements and Dependencies
 
 ### `Ubuntu`
