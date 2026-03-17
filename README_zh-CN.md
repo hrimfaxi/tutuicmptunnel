@@ -66,7 +66,11 @@ sudo pacman -S git base-devel libbpf clang cmake libsodium dkms libsodium flex b
 
 ### `Openwrt`
 
-版本: 至少24.10.1，请看[openwrt指南](docs/openwrt.md)
+对于 OpenWrt 用户，推荐使用姐妹项目 [tutuicmptunnel-kmod](https://github.com/hrimfaxi/tutuicmptunnel-kmod)。
+
+它支持在 **无需重编内核** 的情况下运行于 OpenWrt，因此在 OpenWrt 设备上的安装和使用会更加方便。
+
+如果你一定要坚持在openwrt上运行tutuicmptunnel的话，请看[openwrt指南](docs/openwrt.md)
 
 ## 安装方法
 

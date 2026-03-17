@@ -68,9 +68,14 @@ Dependency Preparation:
 ```sh
 sudo pacman -S git base-devel libbpf clang cmake libsodium dkms libsodium flex bison cmake pkg-config
 ```
+
 ### `Openwrt`
 
-Version: At least 24.10.1, please see the [OpenWrt Guide](docs/openwrt.md)
+For OpenWrt users, we recommend using the sister project [tutuicmptunnel-kmod](https://github.com/hrimfaxi/tutuicmptunnel-kmod).
+
+It runs on OpenWrt **without requiring kernel recompilation**, making installation and usage much easier on OpenWrt devices.
+
+If you still insist on running tutuicmptunnel on OpenWrt, please refer to the [OpenWrt guide](docs/openwrt.md).
 
 ## Installation Method
 
