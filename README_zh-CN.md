@@ -89,9 +89,6 @@ cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_HARDEN_MODE=1 -DUSE_SYSTEM_LIBBPF_BPFT
 
 ```sh
 cmake -DCMAKE_BUILD_TYPE=Release -DUSE_SYSTEM_LIBBPF_BPFTOOL=0 -DDISABLE_BPF_TIMER=1 -DBPF_CPU_VERSION="" .
-````
-
-```sh
 make
 sudo make install
 ```
