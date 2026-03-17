@@ -220,6 +220,7 @@ Peers:
 | :--- | :--- |
 | [iperf3](docs/iperf3.md) | 一款强大的网络性能测试工具，用于测量带宽、抖动和丢包。 |
 | [hysteria](docs/hysteria.md) | 基于 QUIC 协议的代理工具，专为不稳定和高丢包网络优化。 |
+| [xray+hysteria](docs/xray_hysteria.md) | Xray 核心与 Hysteria 协议的组合，用于加速和稳定网络连接。 |
 | [xray+kcptun](docs/xray_kcptun.md) | Xray 核心与 KCPtun 协议的组合，用于加速和稳定网络连接。 |
 | [wireguard](docs/wireguard.md) | 一个现代化、高性能且配置简单的安全 VPN 隧道。 |
 | [openwrt](docs/openwrt.md) | 针对嵌入式设备（尤其是路由器）的高度可定制化 Linux 操作系统。 |
