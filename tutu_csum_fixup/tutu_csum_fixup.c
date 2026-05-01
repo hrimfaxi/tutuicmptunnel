@@ -71,7 +71,7 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
 
     // ICMP
     if (iph->protocol == IPPROTO_ICMP) {
-      if (force_sw_checksum || skb->ip_summed == CHECKSUM_NONE) {
+      if (force_sw_checksum || skb->ip_summed != CHECKSUM_PARTIAL) {
         // 本来如果没有使用硬件计算检验和bpf可以直接处理不需要调用本后门函数，但为了兼容错误配置起见还是替bpf修复检验和
         iph                        = ip_hdr(skb);
         struct icmphdr *icmph      = (typeof(icmph)) ((char *) iph + iph->ihl * 4);
@@ -89,7 +89,7 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
         icmph->checksum = 0;
         icmph->checksum = csum_fold(csum_partial((char *) icmph, (int) icmp_len, 0));
         skb->ip_summed  = CHECKSUM_UNNECESSARY;
-      } else if (skb->ip_summed == CHECKSUM_PARTIAL) {
+      } else {
         // skb->csum_start: 不变，因为udp->icmp并没有修改包长度
         // skb->csum_offset: 应该指向icmp头部检验和位置
         skb->csum_offset = offsetof(struct icmphdr, checksum);
@@ -119,7 +119,7 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
       // print_hex_dump_bytes("icmp6h: ", DUMP_PREFIX_ADDRESS, icmp6h, sizeof(*icmp6h));
       icmp_len = min_t(size_t, icmp_len, skb->len - l4_offset);
 
-      if (force_sw_checksum || skb->ip_summed == CHECKSUM_NONE) {
+      if (force_sw_checksum || skb->ip_summed != CHECKSUM_PARTIAL) {
         err = skb_ensure_writable(skb, l4_offset + icmp_len); // 整个icmp包
         if (unlikely(err))
           return 0;
@@ -132,7 +132,7 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
         // 计算 ICMPv6 校验和(带伪头部)
         icmp6h->icmp6_cksum = csum_ipv6_magic(&ip6h->saddr, &ip6h->daddr, icmp_len, IPPROTO_ICMPV6, csum);
         skb->ip_summed      = CHECKSUM_UNNECESSARY;
-      } else if (skb->ip_summed == CHECKSUM_PARTIAL) {
+      } else {
         // 先保证 L4 头可写
         err = skb_ensure_writable(skb, l4_offset + sizeof(struct icmp6hdr)); // UDP/ICMPv6头至少8字节
         if (unlikely(err))
