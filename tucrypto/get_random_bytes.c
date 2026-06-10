@@ -26,35 +26,44 @@ int get_random_bytes(void *buf, size_t nbytes) {
    * 不需要显式打开/关闭算法句柄。
    */
   NTSTATUS status = BCryptGenRandom(NULL, (PUCHAR) buf, (ULONG) nbytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
-
-  if (status != STATUS_SUCCESS) {
-    // 这里简单返回负值表示错误，你也可以映射到 errno 风格
-    return -1;
-  }
-
+  if (status != STATUS_SUCCESS)
+    return -EIO;
 #else
-  ssize_t result;
+  size_t off = 0;
+
+  if (nbytes > INT_MAX)
+    return -EINVAL;
 
 #ifdef HAVE_SYS_RANDOM_H
-  result = getrandom(buf, nbytes, 0);
-#else
-  result = -1;
+  while (off < nbytes) {
+    ssize_t n = getrandom((char *) buf + off, nbytes - off, 0);
+    if (n > 0) {
+      off += (size_t) n;
+      continue;
+    }
+    if (n < 0 && errno == EINTR)
+      continue;
+    break;
+  }
 #endif
 
-  if (result == -1) {
+  if (off < nbytes) {
     int fd = open("/dev/urandom", O_RDONLY);
-    if (fd < 0) {
-      return fd;
-    }
+    if (fd < 0)
+      return -errno;
 
-    result = read(fd, buf, nbytes);
+    while (off < nbytes) {
+      ssize_t n = read(fd, (char *) buf + off, nbytes - off);
+      if (n > 0) {
+        off += (size_t) n;
+        continue;
+      }
+      if (n < 0 && errno == EINTR)
+        continue;
+      close(fd);
+      return -EIO;
+    }
     close(fd);
-
-    if (result != (ssize_t) nbytes) {
-      return -EINVAL;
-    }
-  } else if (result != (ssize_t) nbytes) {
-    return -EINVAL;
   }
 
 #endif
