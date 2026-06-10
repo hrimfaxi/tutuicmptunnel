@@ -224,6 +224,8 @@ static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf
     }
     exit(127);
   } else {
+    int status;
+
     // --- Parent Process ---
     try2(close(inpipe[0]));  // Close read end
     try2(close(outpipe[1])); // Close write end
@@ -239,7 +241,20 @@ static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf
         break;
     }
     try2(close(outpipe[0]));
-    try2(waitpid(pid, NULL, 0));
+    try2(waitpid(pid, &status, 0));
+
+    if (!WIFEXITED(status)) {
+      log_error("command terminated abnormally (signal %d)", WTERMSIG(status));
+      err = -ECHILD;
+      goto err_cleanup;
+    }
+
+    if (WEXITSTATUS(status) != 0) {
+      log_error("command exited with status %d", WEXITSTATUS(status));
+      err = -EIO;
+      goto err_cleanup;
+    }
+
     err = 0;
   }
 
