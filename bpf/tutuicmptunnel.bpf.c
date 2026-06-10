@@ -579,7 +579,7 @@ static __always_inline int check_age(struct config *cfg, struct session_key *loo
 
   if (!age || now < age || now - age >= cfg->session_max_age) {
     // 太老，需要跳过并删除这个key
-    TUTU_LOG("session_map entry: age %lu too old: now is %lu", age, now);
+    TUTU_LOG("session_map entry: age %llu too old: now is %llu", age, now);
     bpf_map_delete_elem(&session_map, lookup_key);
     return -1;
   }
@@ -1453,7 +1453,7 @@ static long gc_foreach_cb(struct bpf_map *map, const void *_key, void *_value, v
 
   if (!age || now - age >= cfg->session_max_age) {
     // 太老，需要跳过并删除这个key
-    TUTU_LOG("gc_foreach_cb: age %u too old: now is %u", age, now);
+    TUTU_LOG("gc_foreach_cb: age %llu too old: now is %llu", age, now);
     bpf_map_delete_elem(&session_map, key);
   }
 
