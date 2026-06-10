@@ -197,10 +197,10 @@ retry:;
 
   sock = try2(socket(AF_INET6, SOCK_DGRAM, 0), "socket: %s", strret);
 
-#ifdef _WIN32
-  int off = 0; // 0 = 允许 IPv4-mapped (dual-stack)
-  setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (const char *) &off, sizeof(off));
-#endif
+  {
+    int off = 0; // 0 = 允许 IPv4-mapped (dual-stack)
+    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (const char *) &off, sizeof(off));
+  }
 
   struct sockaddr_in6 dst = {
     .sin6_family = AF_INET6,
