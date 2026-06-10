@@ -84,21 +84,21 @@ void hex_dump(char *str, const void *buf, int size) {
     printf("%4x: ", i);
     for (j = 0; j < 16; j++) {
       if ((i + j) < size) {
-        printf(" %02x", ubuf[j]);
+        printf(" %02x", ubuf[i + j]);
       } else {
         printf("   ");
       }
     }
     printf("  ");
     for (j = 0; j < 16 && (i + j) < size; j++) {
-      if (ubuf[j] >= 0x20 && ubuf[j] <= 0x7f) {
-        printf("%c", ubuf[j]);
+      unsigned char ch = ubuf[i + j];
+      if (ch >= 0x20 && ch <= 0x7f) {
+        printf("%c", ch);
       } else {
         printf(".");
       }
     }
     printf("\n");
-    ubuf += 16;
   }
   printf("\n");
 }
