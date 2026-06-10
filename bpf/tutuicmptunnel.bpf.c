@@ -762,7 +762,17 @@ static __always_inline int update_ipv4_checksum(struct __sk_buff *skb, struct ip
   return bpf_l3_csum_replace(skb, check_offset, old_word, new_word, sizeof(new_word));
 }
 
-// Outgoing packet handler (UDP -> ICMP)
+/*
+ * handle_egress: 出向 UDP → ICMP 转换
+ *
+ * 核心机制：
+ * - UDP 与 ICMP 头部大小相同（8 字节），原地替换即可
+ * - icmp_id = icmp_seq = udp->source，每个 UDP 源端口独占一个 ICMP ID，
+ *   因此多源端口应用天然复用，无需额外连接表
+ * - Server 模式：用 udp->dest（即 NAT 后的 icmp_id）查 session_map，
+ *   匹配后回包时复用 client_sport（原始值）重建 ICMP seq
+ * - Client 模式：用 egress_peer_map 查隧道服务器配置
+ */
 SEC("tc/egress")
 int handle_egress(struct __sk_buff *skb) {
   int   err;
@@ -1150,7 +1160,20 @@ static inline int xmit_ingress_ok(void) {
     ;
 }
 
-// Incoming packet handler (ICMP -> UDP)
+/*
+ * handle_ingress: 入向 ICMP → UDP 转换
+ *
+ * 核心机制：
+ * - 提取 ICMP code 作为 uid，验证客户端地址
+ * - 动态更新 user->icmp_id 为 NAT 改写后的最新值，保证后续 egress 查找有效
+ * - 用 (icmp_id, dport) 作为 session_key 插入/更新 session_map；
+ *   icmp_seq 存入 client_sport，作为原始 UDP 源端口的"备份通道"
+ * - NAT 设备通常改写 icmp_id 但不动 icmp_seq，因此：
+ *   · icmp_id 走公网标识（NAT 通道），用于服务器 egress 查找
+ *   · icmp_seq 走原始标识（内网通道），客户端用其重建 UDP 目的端口
+ * - 客户端重建时只看 icmp_seq 作为原始源端口，不依赖 icmp_id，
+ *   即使 NAT 通过别的会话的 icmp_id 将包还原回来，seq 通道仍保证数据不串
+ */
 #ifdef ENABLE_XDP_INGRESS
 SEC("xdp.frags")
 #else
