@@ -39,7 +39,7 @@ int resolve_ip_addr(int family, const char *address, struct in6_addr *out_addr) 
                       .ai_flags  = AI_ADDRCONFIG,
                     },
                   *res = NULL;
-  int err, found = 0;
+  int             err, found = 0;
 
   if ((family == AF_UNSPEC || family == AF_INET6) && inet_pton(AF_INET6, address, &addr6) == 1) {
     *out_addr = addr6;

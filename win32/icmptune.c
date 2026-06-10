@@ -6,9 +6,9 @@
 #include "network.h"
 
 #include "log.h"
-#include "tuparser.h"
 #include "resolve.h"
 #include "try.h"
+#include "tuparser.h"
 #include "windivert.h"
 
 typedef unsigned char      u8;

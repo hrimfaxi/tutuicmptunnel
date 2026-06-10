@@ -174,9 +174,9 @@ static int run_gc_timer(void) {
   uint32_t                 pkt_len       = sizeof(pkt);
   int                      gc_timer_fd   = -1, err;
   struct bpf_test_run_opts opts          = {
-             .sz           = sizeof(struct bpf_test_run_opts),
-             .data_in      = pkt,
-             .data_size_in = pkt_len,
+    .sz           = sizeof(struct bpf_test_run_opts),
+    .data_in      = pkt,
+    .data_size_in = pkt_len,
   };
 
   gc_timer_fd = try2(bpf_obj_get(HANDLE_GC_TIMER_PATH), _("bpf_obj_get: %s: %s"), HANDLE_GC_TIMER_PATH, strret);
@@ -192,7 +192,7 @@ err_cleanup:
 static int gc_switch(bool on) {
   int              gc_switch_map_fd = -1, err;
   struct gc_switch gc_switch        = {
-           .enabled = on,
+    .enabled = on,
   };
 
   gc_switch_map_fd = try2(bpf_obj_get(GC_SWITCH_MAP_PATH), _("bpf_obj_get: %s: %s"), GC_SWITCH_MAP_PATH, strret);

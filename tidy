@@ -1,0 +1,3 @@
+#!/bin/sh
+
+clang-format -i tutu_csum_fixup/*.[ch] bpf/*.[ch] common/*.[ch] tuctl/*.[ch] tucrypto/*.[ch] win32/*.[ch] tuserver/*.[ch]
