@@ -35,7 +35,7 @@ extern int         log_verbosity;
 #define RESET  "\x1B[0m"
 #endif
 
-void log_any(int level, const char *fmt, ...);
+void log_any(int level, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
 #define log_error(fmt, ...) log_any(LOG_ERROR, fmt, ##__VA_ARGS__)
 #define log_warn(fmt, ...)  log_any(LOG_WARN, fmt, ##__VA_ARGS__)

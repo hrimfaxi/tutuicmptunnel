@@ -268,7 +268,7 @@ int cmd_server(int argc, char **argv) {
   try2(set_config_map(config_map_fd, &cfg), _("set_config_map: %s"), strret);
 #ifndef DISABLE_BPF_TIMER
   try2(gc_switch(true), _("gc_switch_on(true): %s"), strret);
-  try2(run_gc_timer(), _("run_gc_timer"), strret);
+  try2(run_gc_timer(), _("run_gc_timer: %s"), strret);
 #endif
 
   err = 0;
@@ -1580,7 +1580,7 @@ int cmd_load(int argc, char **argv) {
 
     err = attach_tc_bpf(ifindex, egress_fd, BPF_TC_EGRESS);
     if (err) {
-      log_error("Failed to attach egress on %s", cur_iface, strerror(-err));
+      log_error("Failed to attach egress on %s: %s", cur_iface, strerror(-err));
       continue;
     }
   }

@@ -104,7 +104,7 @@
     long _ret = (expr);                                                                                                        \
     if (unlikely(_ret < 0)) {                                                                                                  \
       _ret = -errno;                                                                                                           \
-      ret(_ret, ##__VA_ARGS__);                                                                                              \
+      ret(_ret, ##__VA_ARGS__);                                                                                                \
     }                                                                                                                          \
     _ret;                                                                                                                      \
   })

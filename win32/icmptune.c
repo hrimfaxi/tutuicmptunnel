@@ -292,7 +292,7 @@ int main(int argc, char *argv[]) {
   }
 
   WSADATA wsa;
-  try2(WSAStartup(MAKEWORD(2, 2), &wsa), "WSAStartup failed: %d", _ret);
+  try2(WSAStartup(MAKEWORD(2, 2), &wsa), "WSAStartup failed: %ld", _ret);
 
   try2(parse_uid(argv[optind], &local_uid));
   try2(resolve_ip_addr(family, argv[optind + 1], &ip6.sin6_addr));

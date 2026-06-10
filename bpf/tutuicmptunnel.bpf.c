@@ -877,7 +877,7 @@ int handle_egress(struct __sk_buff *skb) {
     }
 
     uid = value_ptr->uid;
-    try2_ok(check_age(cfg, &lookup_key, value_ptr), "check age: %d", _ret);
+    try2_ok(check_age(cfg, &lookup_key, value_ptr), "check age: %ld", _ret);
     user = try2_p_ok(bpf_map_lookup_elem(&user_map, &uid), "invalid uid: %u", uid);
 
     if (ipv4) {
@@ -1204,7 +1204,7 @@ int handle_ingress(
 
 #ifndef ENABLE_XDP_INGRESS
   // 重新pull 整个以太网+ip头部+icmp/icmp6头部
-  try2_ok(bpf_skb_pull_data(ctx, ip_end + sizeof(struct icmphdr)), "pull data failed: %d", _ret);
+  try2_ok(bpf_skb_pull_data(ctx, ip_end + sizeof(struct icmphdr)), "pull data failed: %ld", _ret);
 #endif
   _Static_assert(sizeof(struct icmphdr) == sizeof(struct icmp6hdr), "ICMP and ICMPv6 header sizes must match");
 
@@ -1284,7 +1284,7 @@ int handle_ingress(
     }
 
     // 需要更新session_map
-    try2_ok(update_session_map(user, uid, icmp_seq), "update session map: %d", _ret);
+    try2_ok(update_session_map(user, uid, icmp_seq), "update session map: %ld", _ret);
   } else {
     if (ipv4) {
       try_ok(icmp->type == ICMP_ECHO_REPLY ? 0 : -1);
@@ -1557,11 +1557,11 @@ int handle_gc_timer(struct __sk_buff *skb) {
   }
 
   if (err != -EBUSY) {
-    try2_shot(bpf_timer_set_callback(&gc->timer, gc_tick), "bpf timer set callback: %d", _ret);
+    try2_shot(bpf_timer_set_callback(&gc->timer, gc_tick), "bpf timer set callback: %ld", _ret);
   }
 
   // 启动定时器，如果gc_switch->enabled为假不执行任何任务，也不继续激活timer
-  try2_shot(bpf_timer_start(&gc->timer, NS_PER_SEC, 0), "bpf_timer_start failed with %d", _ret);
+  try2_shot(bpf_timer_start(&gc->timer, NS_PER_SEC, 0), "bpf_timer_start failed with %ld", _ret);
 
   err = 0;
 err_cleanup:

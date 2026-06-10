@@ -171,17 +171,17 @@ int encrypt_and_send_packet(int sock, const struct sockaddr *cli, socklen_t clen
   memcpy(ts_b, &ts_resp, TS_LEN);
   tucrypto_randombytes_buf(nonce, NONCE_LEN);
 
-  try2(psk2key(psk, salt, key), "derive key failed: %d", _ret);
+  try2(psk2key(psk, salt, key), "derive key failed: %ld", _ret);
 #ifdef USE_TUCRYPTO
   size_t ct_len_t = (size_t) ct_len;
   try2(tucrypto_crypto_aead_xchacha20poly1305_ietf_encrypt(ct, &ct_len_t, (const uint8_t *) payload, payload_len, salt,
                                                            SALT_LEN + TS_LEN, nonce, key),
-       "encryption failed: %d", _ret);
+       "encryption failed: %ld", _ret);
   ct_len = (unsigned long long) ct_len_t;
 #elif defined(USE_SODIUM)
   try2(crypto_aead_xchacha20poly1305_ietf_encrypt(ct, &ct_len, (const uint8_t *) payload, payload_len, salt, SALT_LEN + TS_LEN,
                                                   NULL, nonce, key),
-       "encryption failed: %d", _ret);
+       "encryption failed: %ld", _ret);
 #else
 #error Invalid configuration
 #endif
@@ -253,7 +253,7 @@ int decrypt_and_validate_packet(uint8_t *pt_out, unsigned long long *pt_len_out,
     goto err_cleanup;
   }
 
-  try2(psk2key(psk, salt, key), "derive key failed: %d", _ret);
+  try2(psk2key(psk, salt, key), "derive key failed: %ld", _ret);
 
 #ifdef USE_TUCRYPTO
   size_t pt_len_t = 0;

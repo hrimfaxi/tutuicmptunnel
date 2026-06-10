@@ -169,12 +169,12 @@ int main(int argc, char **argv) {
 
 #ifdef _WIN32
   WSADATA wsa;
-  try2(WSAStartup(MAKEWORD(2, 2), &wsa), "WSAStartup failed: %d", _ret);
+  try2(WSAStartup(MAKEWORD(2, 2), &wsa), "WSAStartup failed: %ld", _ret);
 #endif
   setup_pwhash_memlimit();
 
 #ifdef USE_SODIUM
-  try2(sodium_init(), "sodium initialize failed: %d", _ret);
+  try2(sodium_init(), "sodium initialize failed: %ld", _ret);
 #endif
   try2(parse_dsl_args(argc, argv, &a));
 
@@ -187,7 +187,7 @@ retry:;
   size_t  pad_len = tucrypto_randombytes_uniform(256);
   memset(pad, '#', pad_len);
 
-  size_t cmd_len = (size_t) try2(scnprintf(cmd, sizeof(cmd), "%s", a.script), "scnprintf: %d", _ret);
+  size_t cmd_len = (size_t) try2(scnprintf(cmd, sizeof(cmd), "%s", a.script), "scnprintf: %ld", _ret);
   if (cmd_len + pad_len > sizeof(cmd) - 1) {
     pad_len = sizeof(cmd) - 1 - cmd_len;
   }
