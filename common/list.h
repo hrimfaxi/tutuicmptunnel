@@ -115,8 +115,8 @@ static inline void list_del(struct list_head *entry) {
 
 /**
  * list_del_range - deletes range of entries from list.
- * @beging: first element in the range to delete from the list.
- * @beging: first element in the range to delete from the list.
+ * @begin: first element in the range to delete from the list.
+ * @end: last element in the range to delete from the list.
  * Note: list_empty on the range of entries does not return true after this,
  * the entries is in an undefined state.
  */
