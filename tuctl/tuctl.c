@@ -463,8 +463,7 @@ int cmd_client_add(int argc, char **argv) {
       goto err_cleanup;
     }
 
-    strncpy((char *) egress_peer_value.comment, comment, sizeof(egress_peer_value.comment));
-    egress_peer_value.comment[sizeof(egress_peer_value.comment) - 1] = '\0';
+    snprintf((char *) egress_peer_value.comment, sizeof(egress_peer_value.comment), "%s", comment);
   }
 
   ingress_peer_key = (typeof(ingress_peer_key)) {
@@ -760,8 +759,7 @@ int cmd_server_add(int argc, char **argv) {
       goto err_cleanup;
     }
 
-    strncpy((char *) user.comment, comment, sizeof(user.comment));
-    user.comment[sizeof(user.comment) - 1] = '\0';
+    snprintf((char *) user.comment, sizeof(user.comment), "%s", comment);
   }
 
   err = try2(bpf_map_update_elem(user_map_fd, &uid, &user, 0), _("update user map: %s"), strret);
@@ -1335,8 +1333,7 @@ static int add_iface(struct list_head *iface_list_head, const char *iface) {
   if (!new_iface)
     return -ENOMEM;
 
-  strncpy(new_iface->name, iface, sizeof(new_iface->name));
-  new_iface->name[sizeof(new_iface->name) - 1] = '\0';
+  snprintf(new_iface->name, sizeof(new_iface->name), "%s", iface);
   list_add_tail(&new_iface->head, iface_list_head);
   return 0;
 }
