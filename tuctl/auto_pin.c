@@ -48,7 +48,6 @@ static int auto_pin_common(void *bpf, get_prog_fn get_handle_egress, get_prog_fn
   struct bpf_map     *map;
   int                 i, found = 0, err;
   struct bpf_program *prog;
-  int                 map_fd = -1;
 
   (void) get_handle_gc_timer;
 
@@ -78,7 +77,7 @@ static int auto_pin_common(void *bpf, get_prog_fn get_handle_egress, get_prog_fn
       continue;
     }
 
-    map_fd = bpf_map__fd(map);
+    int map_fd = bpf_map__fd(map);
     if (map_fd < 0) {
       log_error("map %s invalid fd: %s", name, strerror(-map_fd));
       continue;
@@ -103,8 +102,7 @@ static int auto_pin_common(void *bpf, get_prog_fn get_handle_egress, get_prog_fn
 
   err = found ? 0 : -ENOENT;
 err_cleanup:
-  if (map_fd >= 0)
-    close(map_fd);
+  // map_fd所有权不属于我们, 不要/不用关闭
   return err;
 }
 
