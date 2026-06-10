@@ -1451,7 +1451,7 @@ static long gc_foreach_cb(struct bpf_map *map, const void *_key, void *_value, v
   __u64 age = value->age;
   __u64 now = (bpf_ktime_get_ns() / NS_PER_SEC); // 当前时间（秒)
 
-  if (!age || now - age >= cfg->session_max_age) {
+  if (!age || now < age || now - age >= cfg->session_max_age) {
     // 太老，需要跳过并删除这个key
     TUTU_LOG("gc_foreach_cb: age %llu too old: now is %llu", age, now);
     bpf_map_delete_elem(&session_map, key);
