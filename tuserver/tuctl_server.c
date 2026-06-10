@@ -318,7 +318,13 @@ int main(int argc, char **argv) {
       memset(resp + resp_len, '#', padding_len);
       resp_len += padding_len;
     }
-    resp[resp_len] = '\0'; // Ensure it's a null-terminated string for logging
+
+    if (resp_len >= sizeof(resp)) {
+      // 缓冲区已满，无法添加结尾符
+      resp_len = sizeof(resp) - 1;
+    }
+
+    resp[resp_len] = '\0';
     log_info("response: %zu bytes", resp_len);
 
     if (encrypt_and_send_packet(sock, (struct sockaddr *) &cli, clen, &rwin, psk, resp, resp_len, NULL)) {
