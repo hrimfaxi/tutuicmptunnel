@@ -71,7 +71,6 @@ int resolve_ip_addr(int family, const char *address, struct in6_addr *out_addr) 
       break;
     }
   }
-  freeaddrinfo(res);
 
   if (!found) {
     log_error("cannot resolve address: %s", address);
@@ -81,6 +80,8 @@ int resolve_ip_addr(int family, const char *address, struct in6_addr *out_addr) 
 
   err = 0;
 err_cleanup:
+  if (res)
+    freeaddrinfo(res);
   return err;
 }
 
