@@ -73,6 +73,10 @@ int  replay_add(struct replay_window *rw, time_t ts, const uint8_t nonce[NONCE_L
 #undef RL_INCLUDE_PORT
 // #define RL_INCLUDE_PORT 1
 
+#if (RL_TABLE_SIZE & (RL_TABLE_SIZE - 1)) != 0
+#error RL_TABLE_SIZE must be a power of two
+#endif
+
 typedef struct {
   uint8_t  in_use;
   uint8_t  family; // AF_INET / AF_INET6
