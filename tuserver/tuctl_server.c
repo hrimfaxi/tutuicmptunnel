@@ -150,6 +150,25 @@ static bool sudo_enabled(void) {
   return true;
 }
 
+/* 写全部数据，处理 short write 和 EINTR */
+static int write_all(int fd, const void *buf, size_t len) {
+  const uint8_t *p    = buf;
+  size_t         left = len;
+  while (left > 0) {
+    ssize_t n = write(fd, p, left);
+    if (n < 0) {
+      if (errno == EINTR)
+        continue;
+      return -errno;
+    }
+    if (n == 0)
+      return -EPIPE;
+    p += n;
+    left -= (size_t) n;
+  }
+  return 0;
+}
+
 /**
  * @brief Executes a command in a child process, capturing stdout/stderr.
  * @param[out] resp_buf      Buffer to store the command's output.
@@ -204,7 +223,7 @@ static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf
     try2(close(inpipe[0]));  // Close read end
     try2(close(outpipe[1])); // Close write end
 
-    try2(write(inpipe[1], cmd, cmd_len) != -1 ? 0 : -errno);
+    try2(write_all(inpipe[1], cmd, cmd_len));
     try2(close(inpipe[1])); // Close pipe to signal EOF to child
 
     *resp_len_out = 0;
