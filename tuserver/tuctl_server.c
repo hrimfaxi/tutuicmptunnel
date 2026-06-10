@@ -16,15 +16,6 @@
 #include "try.h"
 #include "tuparser.h"
 
-// 覆盖argv里的psk
-static void wipe_argv_psk(int argc, char **argv, const char *psk) {
-  for (int i = 0; i < argc; ++i) {
-    if (argv[i] && strstr(argv[i], psk)) {
-      memset(argv[i], '*', strlen(argv[i]));
-    }
-  }
-}
-
 /**
  * @brief Parses command-line arguments.
  * @return 0 on success, -EINVAL on error or if help is requested.
@@ -51,6 +42,7 @@ static int parse_arguments(int argc, char **argv, const char **bind_addr, const 
       break;
     case 'k':
       try(strdup_safe(optarg, psk));
+      memset(optarg, '*', strlen(optarg));
       break;
     case 'w':
       try(parse_window(optarg, window));
@@ -251,7 +243,6 @@ int main(int argc, char **argv) {
   try2(sodium_init(), "libsodium init failed: %s", "unknown error");
 #endif
   try2(parse_arguments(argc, argv, &bind_addr, &port, &psk, &window, &replay_max));
-  wipe_argv_psk(argc, argv, psk);
 
   {
     char bindstr[128];
