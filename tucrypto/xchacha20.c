@@ -70,7 +70,7 @@ void xchacha_hchacha20(uint8_t *out, const uint8_t *in, const uint8_t *k) {
  * is 192 bits.
  *
  */
-void xchacha_keysetup(XChaCha_ctx *ctx, const uint8_t *k, uint8_t *iv) {
+void xchacha_keysetup(XChaCha_ctx *ctx, const uint8_t *k, const uint8_t *iv) {
   /* The sub-key to use */
   uint8_t k2[32];
 

@@ -89,7 +89,7 @@ void xchacha_hchacha20(uint8_t *out, const uint8_t *in, const uint8_t *k);
  * @note It is the user's responsibility to ensure that the key
  * and the iv are of the correct lengths!
  */
-void xchacha_keysetup(XChaCha_ctx *ctx, const uint8_t *k, uint8_t *iv);
+void xchacha_keysetup(XChaCha_ctx *ctx, const uint8_t *k, const uint8_t *iv);
 
 /** Set the internal counter to a specific number. Depending
  * on the specification, sometimes the counter is started at 1.

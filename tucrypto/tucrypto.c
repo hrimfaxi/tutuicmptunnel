@@ -112,7 +112,7 @@ static int tucrypto_crypto_aead_xchacha20poly1305_ietf_encrypt_detached(uint8_t 
   poly1305_context pctx;
   uint8_t          lens[16];
 
-  xchacha_keysetup(&ctx, key, (uint8_t *) npub);
+  xchacha_keysetup(&ctx, key, npub);
   xchacha_set_counter(&ctx, ctr);
   xchacha_keystream_bytes(&ctx, block0, sizeof(block0));
   memcpy(otk, block0, sizeof(otk));
@@ -151,7 +151,7 @@ static int tucrypto_crypto_aead_xchacha20poly1305_ietf_decrypt_detached(uint8_t 
   poly1305_context pctx;
   int              err = -1;
 
-  xchacha_keysetup(&ctx, key, (uint8_t *) npub);
+  xchacha_keysetup(&ctx, key, npub);
   xchacha_set_counter(&ctx, ctr);
   xchacha_keystream_bytes(&ctx, block0, sizeof(block0));
   memcpy(otk, block0, sizeof(otk));
