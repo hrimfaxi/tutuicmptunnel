@@ -1,6 +1,5 @@
 set(icmptune_SOURCES
   icmptune.c
-  log.c
 )
 add_executable(icmptune ${icmptune_SOURCES})
 

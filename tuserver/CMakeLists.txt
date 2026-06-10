@@ -5,7 +5,6 @@ endif()
 set(CLIENT_SOURCES
   tuctl_client.c
   common.c
-  log.c
 )
 add_executable(tuctl_client ${CLIENT_SOURCES})
 
@@ -33,7 +32,6 @@ if (NOT WIN32)
     tuctl_server.c
     ratelimiter.c
     common.c
-    log.c
   )
   add_executable(tuctl_server ${SERVER_SOURCES})
   target_link_libraries(tuctl_server ${LIBS})

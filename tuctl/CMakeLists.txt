@@ -12,7 +12,6 @@ add_flex_bison_dependency(UidScanner UidParser)
 set(SOURCES
   tuctl.c
   auto_pin.c
-  log.c
   uid_map.c
 )
 

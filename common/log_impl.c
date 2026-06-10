@@ -1,9 +1,7 @@
-#pragma once
+#include "log.h"
 
 #include <stdarg.h>
 #include <stdio.h>
-
-#include "log.h"
 
 const char *log_prefixes[][2] = {
   {BOLD RED, N_("Error")},  {BOLD YELLOW, N_(" Warn")}, {BOLD GREEN, N_(" Info")},

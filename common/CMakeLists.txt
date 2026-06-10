@@ -2,6 +2,7 @@ set(SOURCES
   tuparser.c
   resolve.c
   read_script.c
+  log_impl.c
 )
 
 add_library(common ${SOURCES})
