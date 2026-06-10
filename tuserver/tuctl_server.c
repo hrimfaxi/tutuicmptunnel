@@ -77,34 +77,41 @@ err_cleanup:
 }
 
 /**
- * @brief Creates and binds a UDP socket.
- * @param[out] sock_out      Pointer to store the resulting socket file descriptor.
- * @param[out] bindstr_out   Buffer to store the string representation of the bound address.
- * @return 0 on success, non-zero on failure.
+ * @brief 创建并绑定一个 UDP socket。
+ * @param[out] sock_out      用于返回创建成功的 socket 文件描述符。
+ * @param[in]  bind_addr     要绑定的地址，可为 NULL。
+ * @param[in]  port          要绑定的端口字符串。
+ * @param[out] bindstr_out   用于返回实际绑定地址的字符串表示。
+ * @param[in]  bindstr_len   `bindstr_out` 缓冲区长度。
+ * @return 成功返回 0，失败返回负错误码。
  */
 static int setup_socket(int *sock_out, const char *bind_addr, const char *port, char *bindstr_out, size_t bindstr_len) {
   int              err = 0;
-  struct addrinfo *res, *rp, hints = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_DGRAM, .ai_flags = AI_PASSIVE};
+  struct addrinfo *res = NULL, *rp, hints = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_DGRAM, .ai_flags = AI_PASSIVE};
   int              sock = -1;
 
   try2(getaddrinfo(bind_addr, port, &hints, &res), "getaddrinfo: %s", gai_strerror(_ret));
 
+  /* 遍历候选地址，直到成功创建并绑定 socket。 */
   for (rp = res; rp; rp = rp->ai_next) {
     sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-    if (sock != -1) {
-      if (bind(sock, rp->ai_addr, rp->ai_addrlen) == 0)
-        break; // Success
-      close(sock);
-      sock = -1;
-    }
+    if (sock == -1)
+      continue;
+
+    if (bind(sock, rp->ai_addr, rp->ai_addrlen) == 0)
+      break; // 成功绑定
+
+    close(sock);
+    sock = -1;
   }
 
   try2(sock != -1 ? 0 : -errno, "cannot create and bind socket: %s", strerror(errno));
   try2(addr_to_str((struct sockaddr_storage *) rp->ai_addr, bindstr_out, bindstr_len));
 
+  /* 成功后把 socket 所有权交给调用方，避免在统一清理路径中被关闭。 */
   *sock_out = sock;
-  freeaddrinfo(res);
-  return 0;
+  sock      = -1;
+  err       = 0;
 
 err_cleanup:
   if (sock != -1)
