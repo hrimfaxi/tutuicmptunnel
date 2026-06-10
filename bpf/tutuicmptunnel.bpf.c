@@ -578,7 +578,7 @@ static __always_inline int check_age(struct config *cfg, struct session_key *loo
   __u64 age = value_ptr->age;
   __u64 now = (bpf_ktime_get_ns() / NS_PER_SEC); // 当前时间（秒)
 
-  if (!age || now - age >= cfg->session_max_age) {
+  if (!age || now < age || now - age >= cfg->session_max_age) {
     // 太老，需要跳过并删除这个key
     TUTU_LOG("session_map entry: age %lu too old: now is %lu", age, now);
     bpf_map_delete_elem(&session_map, lookup_key);
