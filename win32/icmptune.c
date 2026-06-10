@@ -328,7 +328,7 @@ int main(int argc, char *argv[]) {
   WinDivertSetParam(recv_handle, WINDIVERT_PARAM_QUEUE_TIME, WINDIVERT_PARAM_QUEUE_TIME_MAX);
   WinDivertSetParam(recv_handle, WINDIVERT_PARAM_QUEUE_SIZE, WINDIVERT_PARAM_QUEUE_SIZE_MAX);
 
-  HANDLE thread = CreateThread(NULL, 1, (LPTHREAD_START_ROUTINE) recv_thread, NULL, 0, NULL);
+  HANDLE thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) recv_thread, NULL, 0, NULL);
   if (!thread) {
     log_error("Create thread failed!(%ld)", GetLastError());
     err = -1;
