@@ -90,7 +90,12 @@ static int setup_socket(int *sock_out, const char *bind_addr, const char *port, 
   struct addrinfo *res = NULL, *rp, hints = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_DGRAM, .ai_flags = AI_PASSIVE};
   int              sock = -1;
 
-  try2(getaddrinfo(bind_addr, port, &hints, &res), "getaddrinfo: %s", gai_strerror(_ret));
+  int gai_err = getaddrinfo(bind_addr, port, &hints, &res);
+  if (gai_err != 0) {
+    log_error("getaddrinfo: %s", gai_strerror(gai_err));
+    err = -EINVAL;
+    goto err_cleanup;
+  }
 
   /* 遍历候选地址，直到成功创建并绑定 socket。 */
   for (rp = res; rp; rp = rp->ai_next) {

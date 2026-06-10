@@ -54,7 +54,12 @@ int resolve_ip_addr(int family, const char *address, struct in6_addr *out_addr) 
     goto err_cleanup;
   }
 
-  try2(getaddrinfo(address, NULL, &hints, &res), _("invalid address: %s (%s)"), address, gai_strerror(_ret));
+  int gai_err = getaddrinfo(address, NULL, &hints, &res);
+  if (gai_err != 0) {
+    log_error(_("invalid address: %s (%s)"), address, gai_strerror(gai_err));
+    err = -EINVAL;
+    goto err_cleanup;
+  }
 
   for (struct addrinfo *p = res; p != NULL; p = p->ai_next) {
     if (p->ai_family == AF_INET6 && (family == AF_UNSPEC || family == AF_INET6)) {
