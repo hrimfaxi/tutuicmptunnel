@@ -24,7 +24,7 @@ static const char *map_names[] = {
 static const char *prog_names[] = {
   "handle_egress",
   "handle_ingress",
-#ifndef DIABLE_BPF_TIMER
+#ifndef DISABLE_BPF_TIMER
   "handle_gc_timer",
 #endif
 };
