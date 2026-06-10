@@ -16,26 +16,26 @@ set(SOURCES
 )
 
 get_filename_component(PROG_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
-
-include_directories(../bpf ${CMAKE_CURRENT_SOURCE_DIR})
-add_definitions(-DPROG_NAME=${PROG_NAME})
 add_executable(${PROG_NAME} ${SOURCES}
   ${BISON_ScriptParser_OUTPUTS} ${FLEX_ScriptScanner_OUTPUTS}
   ${BISON_UidParser_OUTPUTS} ${FLEX_UidScanner_OUTPUTS}
 )
 
+target_compile_definitions(${PROG_NAME} PRIVATE PROG_NAME=${PROG_NAME})
+target_include_directories(${PROG_NAME} PRIVATE ../bpf ${CMAKE_CURRENT_SOURCE_DIR})
+
 if (DISABLE_BPF_TIMER)
-  add_definitions(-DDISABLE_BPF_TIMER=1)
+  target_compile_definitions(${PROG_NAME} PRIVATE DISABLE_BPF_TIMER=1)
 endif()
 
 if (USE_SYSTEM_LIBBPF_BPFTOOL)
   set (LIBBPF bpf)
 else()
   set (LIBBPF ${LIBBPF_A} elf z)
-  include_directories(../libbpf/src/root/usr/include)
+  target_include_directories(${PROG_NAME} PRIVATE ../libbpf/src/root/usr/include)
 endif()
 
-target_link_libraries(${PROG_NAME} common pthread ${LIBBPF})
+target_link_libraries(${PROG_NAME} PRIVATE common pthread ${LIBBPF})
 
 install(TARGETS ${PROG_NAME} RUNTIME DESTINATION sbin)
 

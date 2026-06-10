@@ -1,41 +1,32 @@
-if (USE_SODIUM)
-  include_directories(${SODIUM_INCLUDE_DIR})
+if(USE_SODIUM)
+  add_library(sodium_dep INTERFACE)
+  target_include_directories(sodium_dep INTERFACE ${SODIUM_INCLUDE_DIR})
+  target_link_libraries(sodium_dep INTERFACE ${SODIUM_LIBRARY})
 endif()
 
-set(CLIENT_SOURCES
-  tuctl_client.c
-  common.c
-)
-add_executable(tuctl_client ${CLIENT_SOURCES})
-
-set(LIBS
-  common
-  pthread
-)
-if (USE_TUCRYPTO)
-  list(APPEND LIBS tucrypto)
+add_executable(tuctl_client tuctl_client.c common.c)
+target_link_libraries(tuctl_client PRIVATE common pthread)
+if(USE_TUCRYPTO)
+  target_link_libraries(tuctl_client PRIVATE tucrypto)
 endif()
-
-if (USE_SODIUM)
-  list(APPEND LIBS ${SODIUM_LIBRARY})
+if(USE_SODIUM)
+  target_link_libraries(tuctl_client PRIVATE sodium_dep)
 endif()
-
 if(WIN32)
-  list(APPEND LIBS bcrypt ws2_32)
+  target_link_libraries(tuctl_client PRIVATE bcrypt ws2_32)
 endif()
-
-target_link_libraries(tuctl_client ${LIBS})
 install(TARGETS tuctl_client RUNTIME DESTINATION bin)
 
-if (NOT WIN32)
-  set(SERVER_SOURCES
-    tuctl_server.c
-    ratelimiter.c
-    common.c
-  )
-  add_executable(tuctl_server ${SERVER_SOURCES})
-  target_link_libraries(tuctl_server ${LIBS})
+if(NOT WIN32)
+  add_executable(tuctl_server tuctl_server.c ratelimiter.c common.c)
+  target_link_libraries(tuctl_server PRIVATE common pthread)
+  if(USE_TUCRYPTO)
+    target_link_libraries(tuctl_server PRIVATE tucrypto)
+  endif()
+  if(USE_SODIUM)
+    target_link_libraries(tuctl_server PRIVATE sodium_dep)
+  endif()
   install(TARGETS tuctl_server RUNTIME DESTINATION bin)
 endif()
 
-# vim: set sw=2 ts=2 expandtab:
+# vim: set sw=2 ts=2 et:
