@@ -481,7 +481,7 @@ int cmd_client_add(int argc, char **argv) {
       try2(bpf_map_lookup_elem(ingress_peer_map_fd, &ingress_peer_key, &ingress_peer_value),
            _("bpf_map_lookup_elem ingress peer map uid: %u: %s"), uid, strret);
 
-      if (port == htons(ingress_peer_value.port)) {
+      if (port == ntohs(ingress_peer_value.port)) {
         err = 0;
       } else {
         char ipstr[INET6_ADDRSTRLEN], *uidstr = NULL;
@@ -1076,7 +1076,7 @@ int cmd_status(int argc, char **argv) {
 
         try2(ipv6_ntop(ipstr, &key.address), "ipv6_ntop: %s", strret);
         try2(uid2string(key.uid, &uidstr, 0), "uid2string: %s", strret);
-        printf("  %s, Address: %s => Sport: %u\n", uidstr, ipstr, htons(value.port));
+        printf("  %s, Address: %s => Sport: %u\n", uidstr, ipstr, ntohs(value.port));
         free(uidstr);
       });
     }
