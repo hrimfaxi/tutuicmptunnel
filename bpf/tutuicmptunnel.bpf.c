@@ -1370,7 +1370,7 @@ int handle_ingress(
 #ifdef BPF_DEBUG
   TUTU_LOG("Incoming ICMP: 0x%016llx%016llx -> 0x%016llx%016llx", bpf_be64_to_cpu(*(__be64 *) &saddr.s6_addr[0]),
            bpf_be64_to_cpu(*(__be64 *) &saddr.s6_addr[8]));
-  TUTU_LOG("  id: %u, seq: %u, length: %u, ", bpf_htons(icmp_id), bpf_htons(icmp_seq), payload_len);
+  TUTU_LOG("  id: %u, seq: %u, length: %u, ", bpf_ntohs(icmp_id), bpf_ntohs(icmp_seq), payload_len);
 #endif
 
 #if 0
