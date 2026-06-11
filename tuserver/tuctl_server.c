@@ -250,9 +250,14 @@ static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf
     }
 
     if (WEXITSTATUS(status) != 0) {
-      log_error("command exited with status %d", WEXITSTATUS(status));
-      err = -EIO;
-      goto err_cleanup;
+      log_warn("command exited with status %d, but response has %zu bytes", WEXITSTATUS(status), *resp_len_out);
+      /* 如果已经有输出（可能是错误信息），仍然尝试发送给客户端 */
+      if (*resp_len_out == 0) {
+        log_error("command failed with no output");
+        err = -EIO;
+        goto err_cleanup;
+      }
+      /* 否则继续，让上层发送已读取的错误信息 */
     }
 
     err = 0;
