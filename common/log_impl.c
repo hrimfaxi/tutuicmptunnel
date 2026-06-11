@@ -13,6 +13,13 @@ int log_verbosity = 2;
 void log_any(int level, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
+
+  // 防御非法level
+  if (level < LOG_ERROR)
+    level = LOG_ERROR;
+  if (level > LOG_TRACE)
+    level = LOG_TRACE;
+
   if (log_verbosity >= level) {
     fprintf(stderr, "%s%s " RESET, log_prefixes[level][0], gettext(log_prefixes[level][1]));
     if (level >= LOG_TRACE)
