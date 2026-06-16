@@ -204,13 +204,17 @@ static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf
   } else if (pid == 0) {
     // --- Child Process ---
     close(inpipe[1]);   // Close write end of inpipe
+    inpipe[1] = -1;
     dup2(inpipe[0], 0); // Redirect stdin from inpipe
     close(inpipe[0]);
+    inpipe[0] = -1;
 
     close(outpipe[0]);   // Close read end of outpipe
+    outpipe[0] = -1;
     dup2(outpipe[1], 1); // Redirect stdout to outpipe
     dup2(outpipe[1], 2); // Redirect stderr to outpipe
     close(outpipe[1]);
+    outpipe[1] = -1;
 
     if (sudo) {
       execlp("sudo", "sudo", tuctl_prog, "script", "-", NULL);
@@ -228,10 +232,13 @@ static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf
 
     // --- Parent Process ---
     try2(close(inpipe[0]));  // Close read end
+    inpipe[0] = -1;
     try2(close(outpipe[1])); // Close write end
+    outpipe[1] = -1;
 
     try2(write_all(inpipe[1], cmd, cmd_len));
     try2(close(inpipe[1])); // Close pipe to signal EOF to child
+    inpipe[1] = -1;
 
     *resp_len_out = 0;
     ssize_t n;
@@ -241,6 +248,7 @@ static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf
         break;
     }
     try2(close(outpipe[0]));
+    outpipe[0] = -1;
     try2(waitpid(pid, &status, 0));
 
     if (!WIFEXITED(status)) {
