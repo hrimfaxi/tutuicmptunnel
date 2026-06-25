@@ -876,7 +876,8 @@ int handle_egress(struct __sk_buff *skb) {
       return TC_ACT_OK;
     }
 
-    uid = value_ptr->uid;
+    uid      = value_ptr->uid;
+    icmp_seq = value_ptr->client_sport;
     try2_ok(check_age(cfg, &lookup_key, value_ptr), "check age: %ld", _ret);
     user = try2_p_ok(bpf_map_lookup_elem(&user_map, &uid), "invalid uid: %u", uid);
 
@@ -886,8 +887,7 @@ int handle_egress(struct __sk_buff *skb) {
       icmp_type = ICMP6_ECHO_REPLY;
     }
 
-    icmp_id  = user->icmp_id;
-    icmp_seq = value_ptr->client_sport;
+    icmp_id = user->icmp_id;
   } else {
     struct egress_peer_key peer_key = {
       .port = udp->dest,
