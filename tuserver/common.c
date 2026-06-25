@@ -194,7 +194,7 @@ int encrypt_and_send_packet(int sock, const struct sockaddr *cli, socklen_t clen
     goto err_cleanup;
   }
 #else
-  try2(sendto(sock, packet, packet_len, 0, cli, clen), "sendto: %s", strret);
+  try2_e(sendto(sock, packet, packet_len, 0, cli, clen), "sendto: %s", strerrno);
 #endif
 
   err = replay_add(rwin, ts, nonce);

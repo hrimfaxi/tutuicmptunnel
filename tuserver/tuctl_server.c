@@ -195,8 +195,8 @@ static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf
     tuctl_prog = "ktuctl";
   }
 
-  try2(pipe(inpipe), "pipe: %s", strerror(errno));
-  try2(pipe(outpipe), "pipe: %s", strerror(errno));
+  try2_e(pipe(inpipe), "pipe: %s", strerrno);
+  try2_e(pipe(outpipe), "pipe: %s", strerrno);
 
   pid = fork();
   if (pid == -1) {
@@ -231,13 +231,13 @@ static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf
     int status;
 
     // --- Parent Process ---
-    try2(close(inpipe[0]));  // Close read end
+    try2_e(close(inpipe[0]));  // Close read end
     inpipe[0] = -1;
-    try2(close(outpipe[1])); // Close write end
+    try2_e(close(outpipe[1])); // Close write end
     outpipe[1] = -1;
 
     try2(write_all(inpipe[1], cmd, cmd_len));
-    try2(close(inpipe[1])); // Close pipe to signal EOF to child
+    try2_e(close(inpipe[1])); // Close pipe to signal EOF to child
     inpipe[1] = -1;
 
     *resp_len_out = 0;
@@ -247,9 +247,9 @@ static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf
       if (*resp_len_out >= resp_buf_size)
         break;
     }
-    try2(close(outpipe[0]));
+    try2_e(close(outpipe[0]));
     outpipe[0] = -1;
-    try2(waitpid(pid, &status, 0));
+    try2_e(waitpid(pid, &status, 0));
 
     if (!WIFEXITED(status)) {
       log_error("command terminated abnormally (signal %d)", WTERMSIG(status));

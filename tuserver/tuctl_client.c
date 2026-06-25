@@ -195,7 +195,7 @@ retry:;
   cmd_len += pad_len;
   cmd[cmd_len] = '\0';
 
-  sock = try2(socket(AF_INET6, SOCK_DGRAM, 0), "socket: %s", strret);
+  sock = try2_e(socket(AF_INET6, SOCK_DGRAM, 0), "socket: %s", strerrno);
 
   {
     int off = 0; // 0 = 允许 IPv4-mapped (dual-stack)
