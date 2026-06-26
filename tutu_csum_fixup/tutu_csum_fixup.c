@@ -59,11 +59,15 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
     return 0;
 
   struct bpf_skb_change_type_params *params = (typeof(params)) ri->data;
-  struct sk_buff                    *skb    = params->skb;
+  struct sk_buff                    *skb;
+  bool                               fixed = false;
 
-  if (!params->skb || params->type != MAGIC_FLAG3)
+  if (!params || !params->skb || params->type != MAGIC_FLAG3)
     return 0;
+
   pr_info_once("magic called\n");
+  skb = params->skb;
+
   if (skb->protocol == htons(ETH_P_IP)) {
     struct iphdr *iph       = ip_hdr(skb);
     unsigned int  l4_offset = skb_network_offset(skb) + iph->ihl * 4;
@@ -73,10 +77,12 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
     if (iph->protocol == IPPROTO_ICMP) {
       struct icmphdr *icmph;
       size_t          ip_hdr_len = (size_t) (iph->ihl * 4);
-      size_t          icmp_len;
+      size_t          icmp_len, writable_len;
       bool            use_partial;
 
       if (ntohs(iph->tot_len) < ip_hdr_len)
+        return 0;
+      if (l4_offset > skb->len)
         return 0;
       icmp_len = ntohs(iph->tot_len) - ip_hdr_len;
       icmp_len = min_t(size_t, icmp_len, skb->len - l4_offset);
@@ -86,24 +92,28 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
       use_partial = !force_sw_checksum && skb->ip_summed == CHECKSUM_PARTIAL &&
                     skb_checksum_start_offset(skb) == (int) l4_offset;
 
-      if (!use_partial) {
-        err = skb_ensure_writable(skb, l4_offset + icmp_len);
-        if (unlikely(err))
-          return 0;
+      writable_len = l4_offset + (use_partial ? sizeof(*icmph) : icmp_len);
+      err          = skb_ensure_writable(skb, writable_len);
+      if (unlikely(err))
+        return 0;
 
-        icmph           = (struct icmphdr *) (skb->data + l4_offset);
+      icmph = (struct icmphdr *) (skb->data + l4_offset);
+
+      if (use_partial) {
+        /*
+         * CHECKSUM_PARTIAL 下的 ICMPv4：
+         * ICMPv4 校验和只覆盖 ICMP 头和数据，不包含 IPv4 pseudo-header，
+         * 因此这里把 checksum 字段清零即可，硬件从 csum_start 算到包尾后
+         * 写回的就是最终校验和。
+         */
+        icmph->checksum  = 0;
+        skb->csum_offset = offsetof(struct icmphdr, checksum);
+      } else {
         icmph->checksum = 0;
         icmph->checksum = csum_fold(csum_partial((char *) icmph, (int) icmp_len, 0));
         skb->ip_summed  = CHECKSUM_UNNECESSARY;
-      } else {
-        err = skb_ensure_writable(skb, l4_offset + sizeof(*icmph));
-        if (unlikely(err))
-          return 0;
-
-        icmph            = (struct icmphdr *) (skb->data + l4_offset);
-        icmph->checksum  = 0;
-        skb->csum_offset = offsetof(struct icmphdr, checksum);
       }
+      fixed = true;
     }
   } else if (skb->protocol == htons(ETH_P_IPV6)) {
     struct ipv6hdr *ip6h      = ipv6_hdr(skb);
@@ -123,8 +133,8 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
     // ICMPv6
     if (nexthdr == IPPROTO_ICMPV6) {
       struct icmp6hdr *icmp6h;
-      unsigned int     ext_hdr_len;
-      unsigned int     icmp_len;
+      size_t           ext_hdr_len;
+      size_t           icmp_len, writable_len;
       bool             use_partial;
 
       if (l4_offset < skb_network_offset(skb) + sizeof(struct ipv6hdr))
@@ -140,32 +150,38 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
       use_partial = !force_sw_checksum && skb->ip_summed == CHECKSUM_PARTIAL &&
                     skb_checksum_start_offset(skb) == (int) l4_offset;
 
-      if (!use_partial) {
+      writable_len = l4_offset + (use_partial ? sizeof(*icmp6h) : icmp_len);
+      err          = skb_ensure_writable(skb, writable_len);
+      if (unlikely(err))
+        return 0;
+
+      ip6h   = ipv6_hdr(skb);
+      icmp6h = (struct icmp6hdr *) (skb->data + l4_offset);
+
+      if (use_partial) {
+        /*
+         * CHECKSUM_PARTIAL 下的 ICMPv6：
+         * 硬件通常只计算从 csum_start 到包尾的校验和，但 ICMPv6 校验和
+         * 还必须包含 IPv6 pseudo-header。因此这里不能清零，而要先写入
+         * pseudo-header 的补偿值，这样硬件再累加 ICMPv6 头和数据后，
+         * 得到的才是最终校验和。
+         */
+        icmp6h->icmp6_cksum = ~csum_ipv6_magic(&ip6h->saddr, &ip6h->daddr, icmp_len, IPPROTO_ICMPV6, 0);
+        skb->csum_offset    = offsetof(struct icmp6hdr, icmp6_cksum);
+      } else {
         __wsum csum;
 
-        err = skb_ensure_writable(skb, l4_offset + icmp_len);
-        if (unlikely(err))
-          return 0;
-
-        ip6h                = ipv6_hdr(skb);
-        icmp6h              = (struct icmp6hdr *) (skb->data + l4_offset);
         icmp6h->icmp6_cksum = 0;
         csum                = csum_partial((char *) icmp6h, (int) icmp_len, 0);
         icmp6h->icmp6_cksum = csum_ipv6_magic(&ip6h->saddr, &ip6h->daddr, icmp_len, IPPROTO_ICMPV6, csum);
         skb->ip_summed      = CHECKSUM_UNNECESSARY;
-      } else {
-        err = skb_ensure_writable(skb, l4_offset + sizeof(*icmp6h));
-        if (unlikely(err))
-          return 0;
-
-        icmp6h              = (struct icmp6hdr *) (skb->data + l4_offset);
-        icmp6h->icmp6_cksum = 0;
-        skb->csum_offset    = offsetof(struct icmp6hdr, icmp6_cksum);
       }
+      fixed = true;
     }
   }
 
-  regs_set_return_value(regs, params->skb->ip_summed);
+  if (fixed)
+    regs_set_return_value(regs, 0);
   return 0;
 }
 NOKPROBE_SYMBOL(bpf_skb_change_type_ret_handler);
