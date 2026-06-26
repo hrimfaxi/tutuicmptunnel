@@ -586,12 +586,13 @@ static __always_inline int check_age(struct config *cfg, struct session_key *loo
   // 此时需要更新下会话的寿命，否则过了update_interval会话就消失
   // 可以过1秒才更新，避免大量包造成过大压力
   if (now - age >= 1) {
-    int err;
-
+    /* 原位刷新 age，避免按 key 执行 map_update(BPF_EXIST)。
+     * 若旧 session 被并发删除且同 key 新 session 已创建，按 key 更新会把
+     * 旧 value 的其他字段覆盖到新元素上。
+     * value_ptr 由 bpf_map_lookup_elem 返回，直接写入即更新 map。
+     */
     value_ptr->age = now;
-    err            = bpf_map_update_elem(&session_map, lookup_key, value_ptr, BPF_EXIST);
-    (void) err;
-    TUTU_LOG("session updated: age: %lu: %d", now, err);
+    TUTU_LOG("session updated: age: %lu", now);
   }
   return 0;
 }
