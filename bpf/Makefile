@@ -13,7 +13,7 @@ endif
 ARCH := $(shell uname -m | sed 's/x86_64/x86/' | sed 's/aarch64/arm64/')
 
 # BPF compilation flags
-BPF_CFLAGS := -O2 -g -Wall -Werror
+BPF_CFLAGS := -O2 -g -Wall -Werror -Wno-missing-declarations
 BPF_CFLAGS += -target bpf -DBPF=1 -D__TARGET_ARCH_$(ARCH)
 ifneq ($(strip $(BPF_CPU_VERSION)),)
 BPF_CFLAGS += -mcpu=$(BPF_CPU_VERSION)
