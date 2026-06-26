@@ -203,13 +203,13 @@ static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf
     try2(-1, "fork: %s", strerror(errno));
   } else if (pid == 0) {
     // --- Child Process ---
-    close(inpipe[1]);   // Close write end of inpipe
+    close(inpipe[1]); // Close write end of inpipe
     inpipe[1] = -1;
     dup2(inpipe[0], 0); // Redirect stdin from inpipe
     close(inpipe[0]);
     inpipe[0] = -1;
 
-    close(outpipe[0]);   // Close read end of outpipe
+    close(outpipe[0]); // Close read end of outpipe
     outpipe[0] = -1;
     dup2(outpipe[1], 1); // Redirect stdout to outpipe
     dup2(outpipe[1], 2); // Redirect stderr to outpipe
@@ -231,7 +231,7 @@ static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf
     int status;
 
     // --- Parent Process ---
-    try2_e(close(inpipe[0]));  // Close read end
+    try2_e(close(inpipe[0])); // Close read end
     inpipe[0] = -1;
     try2_e(close(outpipe[1])); // Close write end
     outpipe[1] = -1;
