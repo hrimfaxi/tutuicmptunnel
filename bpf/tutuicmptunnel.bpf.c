@@ -1408,16 +1408,22 @@ int handle_ingress(
       TUTU_LOG("update_ipv4_checksum failed: %d", err);
       return TC_ACT_SHOT;
     }
-
-    err = bpf_skb_store_bytes(ctx, ip_proto_offset, &new_proto, sizeof(new_proto), 0);
-
-    if (err) {
-      __sync_fetch_and_add(&cfg->packets_dropped, 1);
-      TUTU_LOG("bpf_skb_store_bytes failed: %d", err);
-      return TC_ACT_SHOT;
-    }
 #endif
   }
+
+  // 写入协议号，ipv4和ipv6都需要
+#ifdef ENABLE_XDP_INGRESS
+  if (ipv6) {
+    ipv6->nexthdr = new_proto;
+  }
+#else
+  err = bpf_skb_store_bytes(ctx, ip_proto_offset, &new_proto, sizeof(new_proto), 0);
+  if (err) {
+    __sync_fetch_and_add(&cfg->packets_dropped, 1);
+    TUTU_LOG("bpf_skb_store_bytes failed: %d", err);
+    return TC_ACT_SHOT;
+  }
+#endif
 
 #ifndef ENABLE_XDP_INGRESS
   // TC-BPF: 写入字节之后， ipv4 & ipv6不再能访问
