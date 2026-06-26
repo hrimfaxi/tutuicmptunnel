@@ -59,8 +59,8 @@ static int bpf_skb_change_type_ret_handler(struct kretprobe_instance *ri, struct
     return 0;
 
   struct bpf_skb_change_type_params *params = (typeof(params)) ri->data;
-  struct sk_buff                    *skb;
-  bool                               fixed = false;
+  struct sk_buff *skb;
+  bool fixed = false;
 
   if (!params || !params->skb || params->type != MAGIC_FLAG3)
     return 0;
