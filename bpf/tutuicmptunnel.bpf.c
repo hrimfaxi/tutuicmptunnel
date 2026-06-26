@@ -196,7 +196,6 @@ static inline bool ipv6_is_ext(__u8 nexthdr) {
   switch (nexthdr) {
   case IPPROTO_HOPOPTS:
   case IPPROTO_ROUTING:
-  case IPPROTO_FRAGMENT:
   case IPPROTO_DSTOPTS:
   case IPPROTO_MH:
     return 1;
