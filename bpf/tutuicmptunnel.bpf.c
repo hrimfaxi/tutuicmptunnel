@@ -881,6 +881,15 @@ int handle_egress(struct __sk_buff *skb) {
     try2_ok(check_age(cfg, &lookup_key, value_ptr), "check age: %ld", _ret);
     user = try2_p_ok(bpf_map_lookup_elem(&user_map, &uid), "invalid uid: %u", uid);
 
+    {
+      __u32 gso_segs = skb->gso_segs;
+      if (gso_segs > 1) {
+        TUTU_LOG("egress server: cannot handle GSO Packets(%u): length: %u", gso_segs, skb->len);
+        __sync_fetch_and_add(&cfg->gso, 1);
+        return TC_ACT_SHOT;
+      }
+    }
+
     if (ipv4) {
       icmp_type = ICMP_ECHO_REPLY;
     } else if (ipv6) {
