@@ -38,7 +38,12 @@ int uid_map_load(uid_map_t *map, const char *filepath) {
   if (!map || !filepath)
     return -EINVAL;
 
-  file = try2_p(fopen(filepath, "r"));
+  file = fopen(filepath, "r");
+  if (!file) {
+    if (errno == ENOENT)
+      return 0;
+    return -errno;
+  }
 
   uid_map_lexer_lineno = 1;
   uid_map_lexer_in     = file;
@@ -46,10 +51,7 @@ int uid_map_load(uid_map_t *map, const char *filepath) {
   err = 0;
 err_cleanup:
   uid_map_lexer_lex_destroy();
-  if (file) {
-    fclose(file);
-    file = NULL;
-  }
+  fclose(file);
 
   return err;
 }

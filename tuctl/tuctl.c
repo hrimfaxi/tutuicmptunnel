@@ -1833,8 +1833,7 @@ int main(int argc, char *argv[]) {
   int err, subcmd_pos;
 
   uid_map_init(&uids);
-  // 忽略错误
-  err = uid_map_load(&uids, UID_CONFIG_PATH);
+  try(uid_map_load(&uids, UID_CONFIG_PATH));
 
   try(parse_argument(argc, argv, &subcmd_pos));
 
