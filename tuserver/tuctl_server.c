@@ -284,6 +284,166 @@ err_cleanup:
   return err;
 }
 
+/**
+ * @brief 替换命令中的所有 @client_ip@ 占位符为客户端源地址，结果写入新分配的缓冲区。
+ *
+ * 设计：输出使用独立缓冲区，失败时不影响原始命令，调用者负责 free(*out)。
+ *
+ * 安全保证：
+ * - *out和*out_len 在参数验证后立即初始化为 NULL/0
+ * - 全路径拒绝 cmd_len == SIZE_MAX，防止 cmd_len + 1 和 SIZE_MAX - 1 - cmd_len 下溢
+ * - 无占位符时直接返回原始副本，不调用 getnameinfo()
+ * - 地址族仅接受 AF_INET / AF_INET6，其他返回 -EAFNOSUPPORT
+ * - 验证 cli_len 上下界
+ * - 增长/缩短分别计算，无无符号下溢
+ * - 失败时 *out 为 NULL，不会泄漏
+ * - 构造完成后验证 w - buf == replaced_len
+ *
+ * 注意：UDP 源地址可被伪造，不代表已认证的客户端身份。
+ *
+ * @pre cmd 指向至少 cmd_len 字节的可读内存。
+ * @pre 若 cmd 中包含 @client_ip@，则 cli 指向有效的
+ *      sockaddr_storage，且 cli_len 与地址族匹配并且不超过 sizeof(*cli)。
+ *
+ * @param[in]  cmd      原始命令。
+ * @param[in]  cmd_len  命令长度，必须 < SIZE_MAX。
+ * @param[in]  cli      recvfrom() 返回的客户端地址（可为 NULL，仅无占位符时允许）。
+ * @param[in]  cli_len  recvfrom() 返回的地址结构实际长度。
+ * @param[out] out      替换后的命令（调用者 free），失败时为 NULL。
+ * @param[out] out_len  替换后的命令长度。
+ * @return 0 成功，-EINVAL 参数错误，-EAFNOSUPPORT 不支持的地址族，
+ *         -ENOMEM 内存不足。
+ */
+static int replace_client_ip(const uint8_t *cmd, size_t cmd_len, const struct sockaddr_storage *cli, socklen_t cli_len,
+                             uint8_t **out, size_t *out_len) {
+  static const char placeholder[]   = "@client_ip@";
+  const size_t      placeholder_len = sizeof(placeholder) - 1;
+  int               err             = 0;
+  int               gai_err;
+  char              ip_str[NI_MAXHOST];
+  size_t            ip_len = 0;
+  size_t            count  = 0;
+  size_t            new_len, replaced_len;
+  uint8_t          *buf = NULL;
+  const uint8_t    *r;
+  uint8_t          *w;
+
+  /* 参数验证 */
+  if (!cmd || !out || !out_len) {
+    err = -EINVAL;
+    goto err_cleanup;
+  }
+
+  *out     = NULL;
+  *out_len = 0;
+
+  /* 全路径拒绝 SIZE_MAX，防止后续 cmd_len + 1 和 SIZE_MAX - 1 - cmd_len 下溢 */
+  if (cmd_len == SIZE_MAX) {
+    err = -ENOMEM;
+    goto err_cleanup;
+  }
+
+  /* 先扫描占位符数量 */
+  r = cmd;
+  while ((r = memmem(r, (size_t) (cmd + cmd_len - r), placeholder, placeholder_len)) != NULL) {
+    count++;
+    r += placeholder_len;
+  }
+
+  /* 无占位符直接复制返回，不需要 cli */
+  if (count == 0) {
+    buf = try2_p(malloc(cmd_len + 1));
+    memcpy(buf, cmd, cmd_len);
+    buf[cmd_len] = '\0';
+    *out         = buf;
+    *out_len     = cmd_len;
+    buf          = NULL; /* 所有权转移给调用者，防止 err_cleanup 释放 */
+    err_cleanup(0);
+  }
+
+  /* 有占位符，需要 cli */
+  if (!cli) {
+    err_cleanup(-EINVAL);
+  }
+
+  /* 验证 cli_len 上下界 */
+  if (cli_len > sizeof(*cli)) {
+    err_cleanup(-EINVAL);
+  }
+
+  switch (cli->ss_family) {
+  case AF_INET:
+    if (cli_len < sizeof(struct sockaddr_in)) {
+      err_cleanup(-EINVAL);
+    }
+    break;
+  case AF_INET6:
+    if (cli_len < sizeof(struct sockaddr_in6)) {
+      err_cleanup(-EINVAL);
+    }
+    break;
+  default:
+    log_error("unsupported address family: %d", cli->ss_family);
+    err_cleanup(-EAFNOSUPPORT);
+  }
+
+  gai_err = getnameinfo((const struct sockaddr *) cli, cli_len, ip_str, sizeof(ip_str), NULL, 0, NI_NUMERICHOST);
+  if (gai_err != 0) {
+    log_error("getnameinfo failed: %s", gai_strerror(gai_err));
+    err_cleanup(-EINVAL);
+  }
+  ip_len = strlen(ip_str);
+
+  /* 预计算替换后长度，按增长/缩短分支避免无符号下溢 */
+  if (ip_len >= placeholder_len) {
+    size_t growth = ip_len - placeholder_len;
+    if (growth != 0 && count > (SIZE_MAX - 1 - cmd_len) / growth) {
+      log_error("replacement length overflow");
+      err_cleanup(-ENOMEM);
+    }
+    replaced_len = cmd_len + (count * growth);
+  } else {
+    size_t shrink = placeholder_len - ip_len;
+    /* count * shrink <= cmd_len：每个被替换项至少占 placeholder_len 字节 */
+    replaced_len = cmd_len - (count * shrink);
+  }
+
+  new_len = replaced_len + 1;
+
+  buf = try2_p(malloc(new_len));
+
+  /* 逐段复制并替换 */
+  r = cmd;
+  w = buf;
+  while (1) {
+    const uint8_t *pos = memmem(r, (size_t) (cmd + cmd_len - r), placeholder, placeholder_len);
+    if (!pos) {
+      memcpy(w, r, (size_t) (cmd + cmd_len - r));
+      w += cmd + cmd_len - r;
+      break;
+    }
+    memcpy(w, r, (size_t) (pos - r));
+    w += pos - r;
+    memcpy(w, ip_str, ip_len);
+    w += ip_len;
+    r = pos + placeholder_len;
+  }
+
+  if ((size_t) (w - buf) != replaced_len) {
+    err = -EINVAL;
+    goto err_cleanup;
+  }
+
+  *w       = '\0';
+  *out     = buf;
+  *out_len = (size_t) (w - buf);
+  buf      = NULL; /* 所有权转移给调用者，防止 err_cleanup 释放 */
+
+err_cleanup:
+  free(buf); /* NULL 安全 */
+  return err;
+}
+
 int main(int argc, char **argv) {
   const char *bind_addr  = "::";
   const char *port       = STR(DEFAULT_SERVER_PORT);
@@ -353,34 +513,50 @@ int main(int argc, char **argv) {
       }
     }
 
-    char   resp[MAX_PT_SIZE];
-    size_t resp_len = 0;
-    if (execute_command(resp, &resp_len, sizeof(resp), pt, pt_len) != 0) {
-      log_error("command execution failed");
-      continue;
-    }
+    {
+      uint8_t *cmd     = pt;
+      size_t   cmd_len = pt_len;
+      uint8_t *new_cmd = NULL;
+      char     resp[MAX_PT_SIZE];
+      size_t   resp_len = 0;
 
-    // Add random padding to response to obscure its length
-    size_t padding_len;
-    if (resp_len < sizeof(resp) - 2) { // Need space for padding and null terminator
-      padding_len = tucrypto_randombytes_uniform(256);
-      if (resp_len + padding_len >= sizeof(resp)) {
-        padding_len = sizeof(resp) - resp_len - 1;
+      /* 替换 @client_ip@ 占位符 */
+      if (replace_client_ip(pt, pt_len, &cli, clen, &new_cmd, &cmd_len) != 0) {
+        log_error("client ip replacement failed");
+        continue;
       }
-      memset(resp + resp_len, '#', padding_len);
-      resp_len += padding_len;
-    }
+      cmd = new_cmd;
 
-    if (resp_len >= sizeof(resp)) {
-      // 缓冲区已满，无法添加结尾符
-      resp_len = sizeof(resp) - 1;
-    }
+      if (execute_command(resp, &resp_len, sizeof(resp), cmd, cmd_len) != 0) {
+        log_error("command execution failed");
+        free(new_cmd);
+        continue;
+      }
+      free(new_cmd);
 
-    resp[resp_len] = '\0';
-    log_info("response: %zu bytes", resp_len);
+      /* Add random padding to response to obscure its length */
+      {
+        size_t padding_len;
+        if (resp_len < sizeof(resp) - 2) {
+          padding_len = tucrypto_randombytes_uniform(256);
+          if (resp_len + padding_len >= sizeof(resp)) {
+            padding_len = sizeof(resp) - resp_len - 1;
+          }
+          memset(resp + resp_len, '#', padding_len);
+          resp_len += padding_len;
+        }
 
-    if (encrypt_and_send_packet(sock, (struct sockaddr *) &cli, clen, &rwin, psk, resp, resp_len, NULL)) {
-      log_error("failed to send response");
+        if (resp_len >= sizeof(resp)) {
+          resp_len = sizeof(resp) - 1;
+        }
+      }
+
+      resp[resp_len] = '\0';
+      log_info("response: %zu bytes", resp_len);
+
+      if (encrypt_and_send_packet(sock, (struct sockaddr *) &cli, clen, &rwin, psk, resp, resp_len, NULL)) {
+        log_error("failed to send response");
+      }
     }
   }
 
