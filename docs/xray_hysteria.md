@@ -148,12 +148,7 @@ export HOST="$ADDRESS"
 export PSK=your_psk_here         # replace with your tuctl_server PSK
 export SERVER_PORT=14801         # replace with your tuctl_server port
 
-# Uses a public IP query service to get the local public IP.
-# You may replace it with another service if preferred.
-IP=$(curl -sf ip.3322.net)
-echo local ip: "$IP"
-
-printf "server\nserver-add uid $TUTU_UID address $IP port $PORT comment $COMMENT\n" | V tuctl_client \
+printf "server\nserver-add uid $TUTU_UID address @client_ip@ port $PORT comment $COMMENT\n" | V tuctl_client \
   psk "$PSK" \
   server "$HOST" \
   server-port "$SERVER_PORT"

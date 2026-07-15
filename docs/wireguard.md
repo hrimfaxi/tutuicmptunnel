@@ -46,7 +46,7 @@ COMMENT=myserver-wgserver
 # 在接口启动前，先添加本地规则
 PreUp = env_file=$(dirname $CONFIG_FILE)/tutuicmptunnel.myserver; source $env_file && tuctl client-add user $TUTU_UID address $ADDR port $PORT comment $COMMENT || true
 # 启动后，通过 tuctl_client 远程添加服务器规则
-PreUp = env_file=$(dirname $CONFIG_FILE)/tutuicmptunnel.myserver; source $env_file && IP=$(curl -s ip.3322.net) && tuctl_client server $ADDR server-port $SERVER_PORT psk $PSK <<< "server-add user $TUTU_UID comment $COMMENT address $IP port $PORT" || true
+PreUp = env_file=$(dirname $CONFIG_FILE)/tutuicmptunnel.myserver; source $env_file && tuctl_client server $ADDR server-port $SERVER_PORT psk $PSK <<< "server-add user $TUTU_UID comment $COMMENT address @client_ip@ port $PORT" || true
 # 在接口关闭时，删除本地规则
 PostDown = env_file=$(dirname $CONFIG_FILE)/tutuicmptunnel.myserver; source $env_file && tuctl client-del user $TUTU_UID address $ADDR || true
 # 接口关闭后，远程删除服务器规则

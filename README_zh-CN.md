@@ -237,10 +237,8 @@ sudo tuctl client
 sudo tuctl client-add uid $TUTU_UID address $ADDRESS port $PORT
 # 验证是否正确
 sudo tuctl status
-# 使用3322.net获取客户端的公网IP
-IP=$(curl -s ip.3322.net)
 # 使用tuctl_client通知服务器新的客户端设置
-tuctl_client psk $PSK server $ADDRESS server-port $SERVER_PORT <<< "server-add uid $TUTU_UID address $IP port $PORT comment $COMMENT"
+tuctl_client psk $PSK server $ADDRESS server-port $SERVER_PORT <<< "server-add uid $TUTU_UID address @client_ip@ port $PORT comment $COMMENT"
 ```
 
 此时可以到服务器上去使用`sudo tuctl`命令查看客户端添加的规则：

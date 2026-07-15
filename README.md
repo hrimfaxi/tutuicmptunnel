@@ -241,10 +241,8 @@ Note:
     sudo tuctl client-add uid $TUTU_UID address $ADDRESS port $PORT
     # Verify if correct
     sudo tuctl status
-    # Use 3322.net to get the client's public IP
-    IP=$(curl -s ip.3322.net)
     # Use tuctl_client to notify the server of the new client settings
-    tuctl_client psk $PSK server $ADDRESS server-port $SERVER_PORT <<< "server-add uid $TUTU_UID address $IP port $PORT comment $COMMENT"
+    tuctl_client psk $PSK server $ADDRESS server-port $SERVER_PORT <<< "server-add uid $TUTU_UID address @client_ip@ port $PORT comment $COMMENT"
     ```
 
     At this point, you can go to the server and use the `sudo tuctl` command to view the rules added by the client:

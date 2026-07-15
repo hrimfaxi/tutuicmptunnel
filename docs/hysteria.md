@@ -107,11 +107,7 @@ export HOST=$ADDRESS
 export PSK=yourlongpsk # 替换为你的tuctl_server的PSK口令
 export SERVER_PORT=your_tuserver_port # 替换为你的tuctl_server的端口
 
-# 使用3322.net提供的服务获取本机公网IP，你也可以换成其他服务
-IP=$(curl -s ip.3322.net)
-echo local ip: $IP
-
-V tuctl_client psk $PSK server $HOST server-port $SERVER_PORT <<<"server-add uid $TUTU_UID address $IP port $PORT comment $COMMENT"
+V tuctl_client psk $PSK server $HOST server-port $SERVER_PORT <<<"server-add uid $TUTU_UID address @client_ip@ port $PORT comment $COMMENT"
 
 # vim: set sw=2 ts=2 expandtab:
 ```
