@@ -1,5 +1,9 @@
 # 使用 tutuicmptunnel 保护 hysteria 流量
 
+[English](./hysteria.md) | [简体中文](./hysteria_zh-CN.md)
+
+---
+
 `hysteria` 基于 UDP/QUIC 传输，同样容易受到 ISP 针对 UDP 的 QoS 限速与干扰。通过 `tutuicmptunnel`，可以将 hysteria 的 UDP 流量封装为 ICMP 报文传输：
 
 ```mermaid
@@ -100,6 +104,7 @@ export PORT=3322 # 替换为你的hysteria服务器udp端口
 
 sudo tuctl script - < $TMP
 sudo tuctl client
+sudo tuctl client-del address $ADDRESS user $TUTU_UID
 sudo tuctl client-add address $ADDRESS port $PORT user $TUTU_UID
 
 export COMMENT=yourdevice # 替换为你的客户端的注释，此注释会在服务器的tuctl命令上显示

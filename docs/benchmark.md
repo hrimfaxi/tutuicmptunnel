@@ -1,16 +1,16 @@
-# Performance Benchmarks
-
 [English](./benchmark.md) | [简体中文](./benchmark_zh-CN.md)
 
 ---
 
-This document compares the throughput performance of `tutuicmptunnel` (BPF / XDP / kmod implementations) with other common UDP obfuscation solutions (`udp2raw`, `phantun`, `mimic`, `pingtunnel`) when carrying WireGuard traffic. All tests were conducted between two identical virtual machines using `iperf3 -t 20`, with one test each for send and receive directions.
+# Performance Benchmark
+
+This article compares the throughput performance of `tutuicmptunnel` (BPF / XDP / kmod implementations) with other common UDP obfuscation solutions like `udp2raw`, `phantun`, `mimic`, and `pingtunnel` when carrying WireGuard traffic. All tests were conducted between two identical virtual machines using `iperf3 -t 20`, with one test each for send and receive directions.
 
 ## Test Environment
 
 * Host: `Ryzen 7 5700X`, `Arch Linux` (2025-07-10), 64G RAM
-* Test VMs: Two `Arch Linux` virtual machines (`libvirt QEMU/KVM`, 4 vCPU each, `virtio` NIC)
-* Test commands: `iperf3 -s` and `iperf3 -c <IP> -t 20`, add `-R` for reverse test
+* Test machines: Two `Arch Linux` virtual machines (`libvirt QEMU/KVM`, 4 vCPU each, `virtio` NIC)
+* Test commands: `iperf3 -s` and `iperf3 -c <IP> -t 20`, reverse test with `-R`
 * WireGuard operating in IPv4 mode
 
 ```mermaid
@@ -31,23 +31,23 @@ flowchart LR
 | Test Scenario | Direction | Avg Throughput (Gbits/sec) | Performance Loss (vs Direct) | Observed CPU Usage |
 | :--- | :--- | :--- | :--- | :--- |
 | **1. Direct Connection (Baseline)** | Send | **21.8** | 0% (baseline) | Single core 100% (iperf3 bottleneck) |
-| | Recv | **19.2** | 0% (baseline) | Single core 100% (iperf3 bottleneck) |
-| **2. WireGuard (Pure UDP)** | Send | **6.83** | -68.7% | 4-core balanced (1 core ~60%, others ~40%) |
-| | Recv | **6.79** | -64.6% | 4-core high and balanced (~86%) |
-| **3. WireGuard + udp2raw** | Send | 0.841 | -96.1% | Low load (1 core ~60%, others ~10-30%) |
-| | Recv | 0.684 | -96.4% | Medium load (4-core ~40-50%) |
-| **4. WireGuard + phantun** | Send | 0.769 | -96.4% | Medium load (4-core ~50%) |
-| | Recv | 0.746 | -96.1% | Medium load (4-core ~60%) |
-| **5. WireGuard + mimic** | Send | 3.06 | -86.0% | High load (1 core 90%, others 3 cores 10~20%) |
-| | Recv | 3.09 | -83.9% | High load and balanced (4-core ~60-70%) |
-| **6. WireGuard + pingtunnel** | Send | 0.49 | -97.8% | Medium load (4-core ~50%) |
-| | Recv | 0.46 | -97.6% | Medium load (4-core ~60%) |
-| **7. WireGuard + tutuicmptunnel (BPF)** | Send | **4.42** | -79.7% | High load (1 core ~90-100%, others ~20-30%) |
-| | Recv | **4.43** | -77.0% | High load and balanced (4-core ~60-70%) |
-| **8. WireGuard + tutuicmptunnel (XDP)** | Send | **5.02** | -76.9% | High load (1 core ~80%, others ~30-40%) |
-| | Recv | **5.01** | -73.9% | High load and balanced (4-core ~70%) |
-| **9. WireGuard + tutuicmptunnel-kmod** | Send | **5.51** | -74.7% | High load (single core 80%, others 3 cores 30~40%) |
-| | Recv | **5.27** | -72.6% | High load and balanced (4-core ~60-70%) |
+| | Receive | **19.2** | 0% (baseline) | Single core 100% (iperf3 bottleneck) |
+| **2. WireGuard (Pure UDP)** | Send | **6.83** | -68.7% | 4-core balanced (1 core~60%, others~40%) |
+| | Receive | **6.79** | -64.6% | 4-core high balanced (~86%) |
+| **3. WireGuard + udp2raw** | Send | 0.841 | -96.1% | Low load (1 core~60%, others~10-30%) |
+| | Receive | 0.684 | -96.4% | Medium load (4 cores~40-50%) |
+| **4. WireGuard + phantun** | Send | 0.769 | -96.4% | Medium load (4 cores~50%) |
+| | Receive | 0.746 | -96.1% | Medium load (4 cores~60%) |
+| **5. WireGuard + mimic** | Send | 3.06 | -86.0% | High load (1 core 90%, others 10~20%) |
+| | Receive | 3.09 | -83.9% | High load balanced (4 cores~60-70%) |
+| **6. WireGuard + pingtunnel** | Send | 0.49 | -97.8% | Medium load (4 cores~50%) |
+| | Receive | 0.46 | -97.6% | Medium load (4 cores~60%) |
+| **7. WireGuard + tutuicmptunnel (BPF)** | Send | **4.42** | -79.7% | High load (1 core~90-100%, others~20-30%) |
+| | Receive | **4.43** | -77.0% | High load balanced (4 cores~60-70%) |
+| **8. WireGuard + tutuicmptunnel (XDP)** | Send | **5.02** | -76.9% | High load (1 core~80%, others~30-40%) |
+| | Receive | **5.01** | -73.9% | High load balanced (4 cores~70%) |
+| **9. WireGuard + tutuicmptunnel-kmod** | Send | **5.51** | -74.7% | High load (1 core 80%, others 30~40%) |
+| | Receive | **5.27** | -72.6% | High load balanced (4 cores~60-70%) |
 
 ```mermaid
 xychart-beta
@@ -67,13 +67,13 @@ xychart-beta
 
 ## Conclusion
 
-Overall, the overhead of UDP obfuscation layers varies dramatically, roughly falling into three tiers:
+Overall, the overhead of UDP obfuscation layers varies greatly, roughly falling into three tiers:
 
-**Tier 1: `tutuicmptunnel` family.** The BPF version achieves ~4.4 Gbps for both send and receive, reaching about 65% of pure WireGuard direct connection; with XDP ingress enabled, it improves to ~5 Gbps; the kernel module (kmod) version is the fastest, achieving 5.51 and 5.27 Gbps for send and receive respectively, about 1.2x faster than the BPF version—the `nftables` kernel path is indeed shorter than BPF. All three are approaching pure WireGuard performance, indicating the bottleneck lies mainly in WireGuard itself rather than the obfuscation layer.
+**Tier 1: `tutuicmptunnel` series.** The BPF version achieves around 4.4 Gbps for both send and receive, about 65% of pure WireGuard direct connection; with XDP ingress enabled, it increases to about 5 Gbps; the kernel module (kmod) version is the fastest, reaching 5.51 and 5.27 Gbps for send and receive respectively, about 1.2x faster than the BPF version—the `nftables` kernel path is indeed shorter than BPF. All three are approaching pure WireGuard performance, indicating the bottleneck is mainly in WireGuard itself rather than the obfuscation layer.
 
-**Tier 2: `mimic`.** As a BPF-based fakeTCP tool, it achieves ~3 Gbps, but only about 70% of `tutuicmptunnel` (BPF), with single-core saturation in the send direction and limited scalability.
+**Tier 2: `mimic`.** As a BPF-based fakeTCP tool, it can reach about 3 Gbps, but only about 70% of `tutuicmptunnel` (BPF), with single-core saturation in the send direction and limited scalability.
 
-**Tier 3: `udp2raw`, `phantun`, and `pingtunnel`, all below 1 Gbps.** Among them, `pingtunnel` is the slowless (send/receive below 0.5 Gbps), `tutuicmptunnel` is ~9x faster; `udp2raw` and `phantun` trade wins, `tutuicmptunnel` is 5-6x faster than them. Notably, `udp2raw` exhibits severe fluctuation, dropping to 280 Mbps at times during testing, likely due to userspace process scheduling jitter. The multi-core designed `phantun` is relatively more stable, while `tutuicmptunnel` showed no similar jitter throughout the test.
+**Tier 3: `udp2raw`, `phantun`, and `pingtunnel`, all below 1 Gbps.** Among them, `pingtunnel` is the slowst (less than 0.5 Gbps for both directions), `tutuicmptunnel` is about 9x faster; `udp2raw` and `phantun` trade wins, `tutuicmptunnel` is 5~6x faster than them. Notably, `udp2raw` shows severe fluctuation, dropping to 280 Mbps during testing, likely due to userspace process scheduling jitter. The multi-core designed `phantun` is relatively more stable, while `tutuicmptunnel` showed no similar jitter throughout.
 
 ---
 
@@ -120,7 +120,6 @@ iperf Done.
 
 CPU usage: single core 100%
 
-hrimfaxi in 🌐 archlinux2 in ~ took 20s 
 ❯ iperf3 -c peer -t 20 -R
 Connecting to host peer, port 5201
 Reverse mode, remote host peer is sending
@@ -163,7 +162,7 @@ CPU usage: single core 100%
 
 `MTU`: 1420
 
-`iperf3` speed test
+`iperf3` speed test:
 
 ```sh
 [root@archlinux2 wireguard]# iperf3 -c peer-wg -t 20
@@ -262,7 +261,7 @@ sudo udp2raw -c \
 ```
 
 `MTU`: 1342
-`wireguard` needs to change `endpoint` to `127.0.0.1:1234`.
+`wireguard` needs to set `endpoint` to `127.0.0.1:1234`.
 
 ```sh
 ❯ iperf3 -c peer-wg -t 20
@@ -489,7 +488,7 @@ Connecting to host peer-wg, port 5201
 
 iperf Done.
 
-CPU usage: 1 core 90%, others 3 cores 10~20%
+CPU usage: 1 core 90%, others 10~20%
 
 ❯ iperf3 -c peer-wg -t 20 -R
 Connecting to host peer-wg, port 5201
@@ -523,7 +522,7 @@ Reverse mode, remote host peer-wg is sending
 
 iperf Done.
 
-CPU usage: 4 cores 60~70%
+CPU usage: 4 cores ~60-70%
 ```
 
 </details>
@@ -622,7 +621,7 @@ CPU usage: 4 cores ~50%.
 * `MTU`: Same as `wireguard`, 1420
 * `TUTU_UID`: 102
 
-Add to `wg0.conf` `[Interface]`:
+`wg0.conf` added to `[Interface]`:
 ```
 PreUp = env_file=$(dirname $CONFIG_FILE)/tutuicmptunnel.wg0; source $env_file && tuctl client-add user $TUTU_UID address $ADDR port $PORT comment $COMMENT || true
 PreUp = env_file=$(dirname $CONFIG_FILE)/tutuicmptunnel.wg0; source $env_file && IP=192.168.122.187 && tuctl_client server $ADDR server-port $SERVER_PORT psk $PSK <<< "server-add user $TUTU_UID comment $COMMENT address $IP port $PORT" || true
@@ -709,7 +708,7 @@ Reverse mode, remote host peer-wg is sending
 
 iperf Done.
 
-CPU usage: 4 cores 60~70%
+CPU usage: 4 cores ~60-70%
 ```
 
 </details>
@@ -718,7 +717,6 @@ CPU usage: 4 cores 60~70%
 <summary><strong>`wireguard` + `tutuicmptunnel` (ENABLE_XDP_INGRESS)</strong></summary>
 
 ```
-hrimfaxi in 🌐 vm in ~ took 20s
 ❯ iperf3 -c peer-wg -t 20
 Connecting to host peer-wg, port 5201
 [  5] local 10.200.103.1 port 40176 connected to 10.200.103.2 port 5201
@@ -750,9 +748,8 @@ Connecting to host peer-wg, port 5201
 
 iperf Done.
 
-CPU usage: single core 80%, others 3 cores 30~40%
+CPU usage: 1 core ~80%, others 30~40%
 
-hrimfaxi in 🌐 vm in ~ took 20s
 ❯ iperf3 -c peer-wg -t 20 -R
 Connecting to host peer-wg, port 5201
 Reverse mode, remote host peer-wg is sending
@@ -826,9 +823,8 @@ Connecting to host peer-wg, port 5201
 
 iperf Done.
 
-CPU usage: single core 80%, others 3 cores 30~40%
+CPU usage: 1 core ~80%, others 30~40%
 
-hrimfaxi in 🌐 archlinux2 in tutuicmptunnel/kmod on  kmod [!?] via C v15.2.1-gcc took 20s
 ❯ iperf3 -c peer-wg  -t 20 -R
 Connecting to host peer-wg, port 5201
 Reverse mode, remote host peer-wg is sending

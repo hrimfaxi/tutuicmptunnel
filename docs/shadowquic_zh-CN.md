@@ -1,5 +1,9 @@
 # shadowquic
 
+[English](./shadowquic.md) | [简体中文](./shadowquic_zh-CN.md)
+
+---
+
 `shadowquic` 是一个基于 **Rust** 与 **quinn(QUIC)** 的代理工具，整体思路与 Hysteria 类似：使用 **UDP/QUIC** 传输，以获得更高吞吐与更好的弱网表现。
 
 > 版本要求：请使用 **0.3.3 或更新版本**，以便支持关闭 **GSO**（用于配合 `tutuicmptunnel`）。

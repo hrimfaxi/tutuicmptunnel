@@ -1,4 +1,8 @@
-# wireguard
+# WireGuard
+
+[English](./wireguard.md) | [简体中文](./wireguard_zh-CN.md)
+
+---
 
 `WireGuard`是一个高效且强大的基于`UDP`的`VPN`协议。为了防止流量被`ISP`针对`UDP`进行`QoS`限速或干扰，
 可以使用`tutuicmptunnel`对`WireGuard`流量进行封装和保护。

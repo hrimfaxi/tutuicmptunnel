@@ -1,17 +1,19 @@
 # hysteria
 
-## 示例展示
+[English](./hysteria.md) | [简体中文](./hysteria_zh-CN.md)
 
-```
-本地 ‑(SOCKS5)→ Hysteria-UDP ‑(ICMP)→ 服务器
-全部参数均已抽象为占位符，请按实际情况替换，尤其是域名 / 密钥。
-⚠️ 文档刻意省略了真实 SNI、密码、IP 等敏感信息，请勿在公开场合留下明文。
-```
+---
 
-我们假设你现在有一个可以用的`hysteria`配置，`UDP`端口为`3322`。
-现在你需要使用`tutuicmptunnel`将流量转变为`ICMP`协议。
+## Example Demonstration
 
-## 依赖
+> Local -(SOCKS5)→ Hysteria-UDP -(ICMP)→ Server \
+> All parameters have been abstracted as placeholders. Please replace them according to your actual situation, especially domains/keys. \
+> ⚠️ The documentation intentionally omits real sensitive information like SNI, passwords, IPs, etc. Do not leave plaintext credentials in public spaces.
+
+We assume you currently have a working `hysteria` configuration with `UDP` port `3322`.
+Now you need to use `tutuicmptunnel` to transform the traffic into the `ICMP` protocol.
+
+## Dependencies
 
 `Ubuntu`:
 
@@ -25,9 +27,9 @@ sudo apt-get install curl
 sudo pacman -S curl
 ```
 
-## `tutuicmptunnel`设置
+## `tutuicmptunnel` Settings
 
-首先要在服务器上为你的客户端设备选好一个`UID`，比如说主机名为`a320`，`UID`为100。
+First, you need to select a `UID` for your client device on the server. For example, let's say the hostname is `a320` and the `UID` is 100.
 
 `/etc/tutuicmptunnel/uids`:
 
@@ -35,14 +37,14 @@ sudo pacman -S curl
 100 a320 # a320
 ```
 
-客户端上也同样添加以上记录到`/etc/tutuicmptunnel/uids`。
+Add the above record to `/etc/tutuicmptunnel/uids` on the client side as well.
 
-## 修改systemd 单元文件
+## Modify Systemd Unit File
 
-注意`tutuicmptunnel`无法处理`GSO`包，需要关闭`hysteria`的相关功能。
-通过设置环境变量`QUIC_GO_DISABLE_GSO=1`，如下所示：
+Note that `tutuicmptunnel` cannot handle `GSO` packets, so `hysteria`'s related functionality needs to be disabled.
+Set the environment variable `QUIC_GO_DISABLE_GSO=1` as shown below:
 
- `/etc/systemd/system/hysteria-server@.service`:
+`/etc/systemd/system/hysteria-server@.service`:
 
 ```ini
 [Unit]
@@ -63,25 +65,25 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-## 清理过期会话
+## Clean Up Expired Sessions
 
-如果架构不支持`bpf_timer`才需要需要清理过期会话（`mips`或者较低版本的`ubuntu`)
+Session cleanup is only needed if the architecture does not support `bpf_timer` (`mips` or older `ubuntu` versions).
 
 ```bash
 sudo cp contrib/etc/systemd/system/tutuicmptunnel-server-reaper.timer /etc/systemd/system/
 sudo systemctl enable --now tutuicmptunnel-server-reaper.timer
 ```
 
-### 同步客户端`ip`脚本
+### Client IP Sync Script
 
-可以在客户端上使用`tuctl_client`工具来远程修改服务器的`tuctl`配置，这样客户端公网`IP`切换了也可以通知服务器。
+You can use the `tuctl_client` tool on the client to remotely update the server's `tuctl` configuration. This way, when the client's public IP changes, the server can be notified.
 
 `/usr/local/bin/tutuicmptunnel_sync.sh`:
 
 ```bash
 #!/bin/bash
 
-# 本脚本在客户端上运行，通过tuctl_client工具通告服务器客户端配置的更新。
+# This script runs on the client, notifying the server of client config updates via tuctl_client.
 
 V() {
   echo "$@"
@@ -89,48 +91,49 @@ V() {
 }
 
 TMP=$(mktemp)
-export DEV=eth0 # 你的客户端的上网接口名
+export DEV=eth0 # Your client's internet interface name
 sudo tuctl dump > $TMP
 sudo tuctl unload iface $DEV
-sudo tuctl load iface $DEV #ethhdr #debug
+sudo tuctl load iface $DEV
 
-export TUTU_UID=100 # 替换为你的服务器上选好的uid或用户名
-export ADDRESS=yourdomain.com # 替换为你的hysteria服务器域名或IP
-export PORT=3322 # 替换为你的hysteria服务器udp端口
+export TUTU_UID=100 # Replace with the uid chosen on your server
+export ADDRESS=yourdomain.com # Replace with your hysteria server domain or IP
+export PORT=3322 # Replace with your hysteria server udp port
 
 sudo tuctl script - < $TMP
 sudo tuctl client
+sudo tuctl client-del address $ADDRESS user $TUTU_UID
 sudo tuctl client-add address $ADDRESS port $PORT user $TUTU_UID
 
-export COMMENT=yourdevice # 替换为你的客户端的注释，此注释会在服务器的tuctl命令上显示
+export COMMENT=yourdevice # Replace with a comment for your client; this will appear in the server's tuctl command output
 export HOST=$ADDRESS
-export PSK=yourlongpsk # 替换为你的tuctl_server的PSK口令
-export SERVER_PORT=your_tuserver_port # 替换为你的tuctl_server的端口
+export PSK=yourlongpsk # Replace with your tuctl_server PSK password
+export SERVER_PORT=your_tuserver_port # Replace with your tuctl_server port
 
 V tuctl_client psk $PSK server $HOST server-port $SERVER_PORT <<<"server-add uid $TUTU_UID address @client_ip@ port $PORT comment $COMMENT"
 
 # vim: set sw=2 ts=2 expandtab:
 ```
 
-### 启动`tutuicmptunnel`
+### Start `tutuicmptunnel`
 
 ```bash
 
-# 先同步tutuicmptunnel的客户端IP
+# First sync the client IP to the server
 /usr/local/bin/tutuicmptunnel_sync.sh
 
-# 再跑 hysteria 客户端
+# Then run the hysteria client
 QUIC_GO_DISABLE_GSO=1 hysteria client -c client.yaml
 ```
 
-如果客户端公网`IP`频繁切换，此时需要更新客户端`IP`到服务器。可以添加以上脚本到`crontab`定期运行（每5分钟）：
+If the client's public IP changes frequently, you need to update the client IP to the server. You can add the above script to `crontab` to run periodically (every 5 minutes):
 
 ```
 PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
 */5 * * * * /usr/local/bin/tutuicmptunnel_sync.sh
 ```
 
-或者使用一个`systemd-timer`达到同样目的：
+Or use a `systemd-timer` to achieve the same goal:
 
 `/etc/systemd/system/tutuicmptunnel_sync.service`:
 
@@ -159,27 +162,27 @@ Persistent=true
 WantedBy=timers.target
 ```
 
-## 测试
+## Testing
 
-测速：
+Speed test:
 
 ```bash
 hysteria speedtest -c client.yaml 
 ```
 
-查看 ICMP 隧道计数：
+View ICMP tunnel counters:
 
 ```bash
 sudo tuctl -d
 ```
 
-`BPF`日志：
+BPF logs:
 
 ```bash
 sudo bpftool prog tracelog
 ```
 
-查看是否有icmp包：
+Check for ICMP packets:
 
 ```bash
 sudo tcpdump -i any icmp -n -v
