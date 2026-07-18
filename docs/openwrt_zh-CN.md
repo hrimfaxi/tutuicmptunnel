@@ -141,13 +141,13 @@ scp ../libsodium/src/libsodium/.libs/libsodium.so router:/usr/lib/
 **服务端**（systemd 单元文件）：
 
 ```ini
-Environment=TUTUICMPTUNNEL_PWHASH_MEMLIMIT=1024768
+Environment=TUTUICMPTUNNEL_PWHASH_MEMLIMIT=1048576
 ```
 
 **客户端**：
 
 ```bash
-TUTUICMPTUNNEL_PWHASH_MEMLIMIT=1024768 tuctl_client ...
+TUTUICMPTUNNEL_PWHASH_MEMLIMIT=1048576 tuctl_client ...
 ```
 
 > [!WARNING]

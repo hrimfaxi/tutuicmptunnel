@@ -78,7 +78,7 @@ COMMENT="a320-mosh"
 PSK="yourlongpsk"
 
 # Adjust to match your server settings
-#export TUTUICMPTUNNEL_PWHASH_MEMLIMIT="1024768"
+#export TUTUICMPTUNNEL_PWHASH_MEMLIMIT="1048576"
 
 MOSH_USER="${MOSH_USER:-$USER}"
 SSH_PORT="${SSH_PORT:-22}"
