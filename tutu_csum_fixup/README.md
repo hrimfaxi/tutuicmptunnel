@@ -1,12 +1,16 @@
-# tutu_csum_fixup —— 校验和修复内核模块
+[English](./README.md) | [简体中文](./README_zh-CN.md)
 
-本模块通过 **kretprobe** 挂接到 `bpf_skb_change_type()` 的错误返回路径，为 `tutuicmptunnel`（eBPF 版本）在**开启硬件 TX 校验和 offload** 的设备上重新修正 ICMP/ICMPv6 校验和，避免出现 `bad checksum` 报文。
+---
 
-由于 eBPF 无法关闭或修改硬件 offload，这部分工作只能由内核模块接管。建议开机自动加载本模块，以免遇到校验和问题。
+# tutu_csum_fixup — Checksum Fixup Kernel Module
 
-## 为什么需要它？
+This module hooks into the error return path of `bpf_skb_change_type()` via **kretprobe** to recalculate ICMP/ICMPv6 checksums for `tutuicmptunnel` (BPF version) on devices with **hardware TX checksum offload** enabled, preventing `bad checksum` packets.
 
-许多网卡 / 交换芯片默认开启 **TX checksum offload**：
+Since eBPF cannot disable or modify hardware offload, this work must be handled by a kernel module. It is recommended to load this module automatically at boot to avoid checksum issues.
+
+## Why Is It Needed?
+
+Many NICs / switch chips have **TX checksum offload** enabled by default:
 
 ```bash
 ethtool -k eth0 | grep checksum
@@ -14,32 +18,32 @@ ethtool -k eth0 | grep checksum
 # tx-checksum-ip-generic: on
 ```
 
-当 eBPF 程序执行 **UDP ⇆ ICMP** 的协议变换时，Linux 目前**没有公开 API 可供 BPF 关闭或修改硬件 offload**。结果就是：
+When the eBPF program performs **UDP ⇆ ICMP** protocol transformation, Linux currently **has no public API for BPF to disable or modify hardware offload**. The result is:
 
-- UDP → ICMP 转换后，ICMP 报文在硬件重新计算校验和前就被发出 → bad cksum
-- 上层应用报错，抓包能看到 "incorrect icmp checksum"
+- After UDP → ICMP conversion, the ICMP packet is sent before the hardware recalculates the checksum → bad cksum
+- Upper-layer applications report errors, and packet captures show "incorrect icmp checksum"
 
-解决方法有两种：
+There are two solutions:
 
-1. **加载本模块**（推荐）：在错误路径中抓取 `skb` 并手动修正校验和。
+1. **Load this module** (recommended): capture the `skb` in the error path and manually fix the checksum.
 
    > [!WARNING]
-   > OpenWrt 官方内核默认禁用 kprobes，需自行编译内核才能使用本模块。
+   > Official OpenWrt kernels disable kprobes by default; you must compile a custom kernel to use this module.
 
-2. **彻底关闭设备的 TX checksum offload**：
+2. **Completely disable TX checksum offload on the device**:
 
    ```bash
    ethtool -K eth0 tx-checksum-ip-generic off tx-checksum-ipv4 off tx off
    ```
 
-   缺点：
+   Disadvantages:
 
-   - 某些网卡 / DSA 交换芯片不支持关闭。
-   - 所有流量都失去硬件加速，CPU 占用上升。
+   - Some NICs / DSA switch chips do not support disabling offload.
+   - All traffic loses hardware acceleration, increasing CPU usage.
 
-## 安装
+## Installation
 
-### 快速安装（DKMS，适用于主线发行版内核）
+### Quick Install (DKMS, for mainline distribution kernels)
 
 ```bash
 sudo apt install dkms -y          # Ubuntu / Debian
@@ -51,25 +55,25 @@ sudo tee /etc/modules-load.d/tutu_csum_fixup.conf <<< tutu_csum_fixup
 sudo modprobe tutu_csum_fixup
 ```
 
-如果 `tutu_csum_fixup` 成功重写了报文，可以在内核日志中看到：
+If `tutu_csum_fixup` successfully rewrote the packet, you can see in the kernel log:
 
 ```bash
 dmesg | grep tutu_csum_fixup
 # tutu_csum_fixup: magic called
 ```
 
-### 手动编译
+### Manual Build
 
 ```bash
 cd tutu_csum_fixup
-make                        # 针对当前运行内核生成 tutu_csum_fixup.ko
+make                        # Build tutu_csum_fixup.ko for the running kernel
 sudo make modules_install
 sudo modprobe tutu_csum_fixup
 ```
 
-可选参数：`KSRC=<内核源码树>`、`KVER=<版本>`、`LLVM=1`。
+Optional parameters: `KSRC=<kernel source tree>`, `KVER=<version>`, `LLVM=1`.
 
-### 交叉编译示例（OpenWrt）
+### Cross-Compilation Example (OpenWrt)
 
 ```bash
 make -C tutu_csum_fixup \
@@ -78,17 +82,17 @@ make -C tutu_csum_fixup \
     ARCH=arm64
 ```
 
-## 模块参数
+## Module Parameters
 
 ### `force_sw_checksum`
 
-对于某些特殊环境（如部分不支持 ICMP 硬件校验和的服务器，例如阿里云实例或某些 QEMU e1000e 网卡场景），需要强制使用软件方式计算校验和。可通过如下方式配置：
+For certain special environments (such as servers that do not support ICMP hardware checksums, e.g., Alibaba Cloud instances or some QEMU e1000e NIC scenarios), you need to force software checksum calculation. Configure as follows:
 
 ```bash
 sudo tee /etc/modprobe.d/tutu_csum_fixup.conf <<< "options tutu_csum_fixup force_sw_checksum=1"
 sudo modprobe -r tutu_csum_fixup; sudo modprobe tutu_csum_fixup
 ```
 
-| 参数 | 说明 | 默认值 |
+| Parameter | Description | Default |
 | ---- | ---- | ------ |
-| `force_sw_checksum` | 强制使用软件方式计算校验和，用于硬件校验和不可用或不可靠的环境。 | `0`（关闭） |
+| `force_sw_checksum` | Force software checksum calculation for environments where hardware checksum is unavailable or unreliable. | `0` (disabled) |
