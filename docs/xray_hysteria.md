@@ -100,22 +100,25 @@ Environment="QUIC_GO_DISABLE_GSO=1"
 
 ## `tutuicmptunnel` configuration
 
-If you are still using `tutuicmptunnel` for link access, this part can remain mostly unchanged. You only need to update the target port to the actual Hysteria port you use.
+The tunnel configuration is mostly the same as the [hysteria tutorial](/docs/hysteria.md), just change the target port to the actual Hysteria port (this example uses `3323`).
 
-First, check whether both server and client have a shared `/etc/tutuicmptunnel/uids` configuration:
+### 1. Check UID
+
+Check whether both server and client have a shared `/etc/tutuicmptunnel/uids` configuration:
 
 ```txt
 123 your_user_name
 ```
 
-Then verify that `tutu_csum_fixup.ko` is loaded on both server and client, and that `ktuctl` can access the device:
+Verify that BPF programs are loaded on both ends and `tuctl` can access the device:
 
 ```sh
-sudo lsmod | grep tutu_csum_fixup
 sudo tuctl -d
 ```
 
-Run the following simple script on the client. It will sync the configuration to both the server and the client:
+### 2. Configuration sync script
+
+Run the following script on the client. It will sync the configuration to both the server and the client:
 
 ```sh
 #!/bin/sh
@@ -129,8 +132,8 @@ TMP=$(mktemp)
 export DEV=enp4s0 # your client uplink interface name
 
 sudo tuctl dump > "$TMP"
-sudo rmmod tutu_csum_fixup
-sudo modprobe tutu_csum_fixup
+sudo tuctl unload iface "$DEV"
+sudo tuctl load iface "$DEV"
 
 export TUTU_UID=your_user_name   # replace with the UID selected on the server
 export ADDRESS=your-server.example.com # replace with your server domain or IP
@@ -138,7 +141,6 @@ export PORT=3323                 # Hysteria server UDP port
 
 sudo tuctl script - < "$TMP"
 rm -f "$TMP"
-sudo tuctl load iface "$DEV"
 sudo tuctl client
 sudo tuctl client-del address "$ADDRESS" user "$TUTU_UID"
 sudo tuctl client-add address "$ADDRESS" port "$PORT" user "$TUTU_UID"
@@ -156,7 +158,9 @@ printf "server\nserver-add uid $TUTU_UID address @client_ip@ port $PORT comment 
 # vim: set sw=2 ts=2 et:
 ```
 
-If you use `systemd` to start `xray-core`, you can add both the environment variable and the pre-start script to the unit file:
+### 3. Start
+
+Run the script before starting the `xray-core` client. If you use `systemd` to manage `xray-core`, you can add both the environment variable and the pre-start script to the unit file:
 
 ```ini
 [Service]
@@ -164,8 +168,6 @@ Environment="QUIC_GO_DISABLE_GSO=1"
 ExecStartPre=/path/to/your/script.sh
 ```
 
-You can run the script before starting the `xray-core` client. Alternatively, add it as `ExecStartPre` in the `systemd` unit so it runs automatically.
+## Start at boot & IP changes
 
-## Start at boot
-
-Refer to your Hysteria deployment method. You can also continue using `crontab` or a `systemd-timer` to periodically run the script above, so that the configuration is updated automatically when the public IP changes.
+If the client's public IP changes, you can use `crontab` or `systemd-timer` to periodically run the script above. See [hysteria tutorial](/docs/hysteria.md) "Periodic client IP sync" section for details.

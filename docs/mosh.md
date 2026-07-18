@@ -4,7 +4,21 @@
 
 ---
 
-This document shows how to **pin MOSH’s UDP session port** to a single port (e.g. `3325/udp`), and use **tutuicmptunnel** to encapsulate that UDP traffic into **ICMP echo request/reply**, so you can still use mosh when UDP is blocked or unstable.
+This document shows how to **pin MOSH's UDP session port** to a single port (e.g. `3325/udp`), and use **tutuicmptunnel** to encapsulate that UDP traffic into **ICMP echo request/reply**, so you can still use mosh when UDP is blocked or unstable.
+
+```mermaid
+flowchart LR
+    subgraph Client
+        A[mosh client] --> B[UDP :3325]
+        B --> C[tutuicmptunnel<br/>encapsulate to ICMP]
+        S[SSH :22<br/>auth/start mosh-server] -.->|direct| SRV
+    end
+    C -- "ICMP (public network)" --> D
+    subgraph Server
+        D[tutuicmptunnel<br/>decapsulate] --> E[UDP :3325]
+        E --> F[mosh-server]
+    end
+```
 
 ## Background
 
@@ -20,22 +34,35 @@ This document shows how to **pin MOSH’s UDP session port** to a single port (e
 
 ---
 
-## Server (test.server)
+## Prerequisites
 
-1) Install mosh:
+| Parameter | Example Value | Description |
+| :--- | :--- | :--- |
+| Server address | `test.server` | mosh server domain or IP |
+| mosh UDP port | `3325` | Fixed session port |
+| tuctl_server port | `14801` | Remote management port |
+| tuctl_server PSK | `yourlongpsk` | Remote management passphrase |
+| Client UID | `199` | Unique UID assigned on server for this client |
+
+> [!NOTE]
+> All values above are examples—replace with your actual configuration. The server must have `tutuicmptunnel-tuctl-server` installed and running, and both server and client must have the UID registered in `/etc/tutuicmptunnel/uids` (see [wireguard tutorial](/docs/wireguard.md) "Assign UID" section).
+
+## Server Configuration
+
+1. Install mosh:
+
 ```bash
 # Debian/Ubuntu
 sudo apt update && sudo apt install -y mosh
 ```
 
-2) Allow UDP 3325 (if you have a firewall):
+2. Allow UDP 3325 (if you have a firewall):
+
 ```bash
 sudo ufw allow 3325/udp
 ```
 
----
-
-## Client
+## Client Configuration
 
 Save as `mosh-over-icmp.sh`:
 
@@ -56,6 +83,8 @@ PSK="yourlongpsk"
 MOSH_USER="${MOSH_USER:-$USER}"
 SSH_PORT="${SSH_PORT:-22}"
 
+sudo tuctl unload iface "$(ip route get 1 | awk '{print $5; exit}')"
+sudo tuctl load iface "$(ip route get 1 | awk '{print $5; exit}')"
 sudo tuctl client
 sudo tuctl client-del uid "$TUTU_UID" address "$ADDRESS"
 sudo tuctl client-add uid "$TUTU_UID" address "$ADDRESS" port "$PORT"
@@ -74,27 +103,34 @@ else
 fi
 ```
 
-Run:
+The script does three things: registers client rules locally via `tuctl`, remotely notifies the server to add rules via `tuctl_client`, then starts mosh with the fixed port.
+
+## Start
+
 ```bash
 chmod +x mosh-over-icmp.sh
 ./mosh-over-icmp.sh
 ```
 
-Specify username / SSH port:
+Specify login username or custom SSH port:
+
 ```bash
 MOSH_USER=root SSH_PORT=2222 ./mosh-over-icmp.sh
 ```
 
----
+## Verification
 
-## Verification (Optional)
+**Check UDP listener on server:**
 
-Check the listener on the server:
 ```bash
 sudo ss -lunp | grep ':3325'
 ```
 
-Capture ICMP on the client:
+**Capture ICMP on client to confirm traffic is encapsulated:**
+
 ```bash
 sudo tcpdump -ni any icmp
 ```
+
+> [!TIP]
+> If mosh connection drops immediately after establishing, first check that the UID in `uids` files matches on both ends, and that the server firewall allows the corresponding port.

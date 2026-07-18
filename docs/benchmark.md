@@ -1,84 +1,88 @@
-# 性能测试
+# Performance Benchmarks
 
-本文对比 `tutuicmptunnel`（BPF / XDP / kmod 三种实现）与 `udp2raw`、`phantun`、`mimic`、`pingtunnel` 等常见 UDP 伪装方案承载 WireGuard 时的吞吐性能。所有测试均在相同的两台虚拟机之间进行，命令统一为 `iperf3 -t 20`，发送与接收方向各测一次。
+[English](./benchmark.md) | [简体中文](./benchmark_zh-CN.md)
 
-## 测试环境
+---
 
-* 宿主机：`Ryzen 7 5700X`，`Arch Linux`（2025-07-10），64G 内存
-* 测试机：两台 `Arch Linux` 虚拟机（`libvirt QEMU/KVM`，各 4 vCPU，网卡 `virtio`）
-* 测试命令：`iperf3 -s` 与 `iperf3 -c <IP> -t 20`，反向测试加 `-R`
-* WireGuard 工作于 IPv4 模式
+This document compares the throughput performance of `tutuicmptunnel` (BPF / XDP / kmod implementations) with other common UDP obfuscation solutions (`udp2raw`, `phantun`, `mimic`, `pingtunnel`) when carrying WireGuard traffic. All tests were conducted between two identical virtual machines using `iperf3 -t 20`, with one test each for send and receive directions.
+
+## Test Environment
+
+* Host: `Ryzen 7 5700X`, `Arch Linux` (2025-07-10), 64G RAM
+* Test VMs: Two `Arch Linux` virtual machines (`libvirt QEMU/KVM`, 4 vCPU each, `virtio` NIC)
+* Test commands: `iperf3 -s` and `iperf3 -c <IP> -t 20`, add `-R` for reverse test
+* WireGuard operating in IPv4 mode
 
 ```mermaid
 flowchart LR
-    subgraph VMA["虚拟机 A (4 vCPU, virtio)"]
+    subgraph VMA["VM A (4 vCPU, virtio)"]
         A1[iperf3 client] --> A2[WireGuard wg0<br/>10.200.103.1]
-        A2 --> A3[隧道层<br/>tutuicmptunnel / udp2raw /<br/>phantun / mimic / pingtunnel]
+        A2 --> A3[Tunnel Layer<br/>tutuicmptunnel / udp2raw /<br/>phantun / mimic / pingtunnel]
     end
-    subgraph VMB["虚拟机 B (4 vCPU, virtio)"]
-        B3[隧道层] --> B2[WireGuard wg0<br/>10.200.103.2]
+    subgraph VMB["VM B (4 vCPU, virtio)"]
+        B3[Tunnel Layer] --> B2[WireGuard wg0<br/>10.200.103.2]
         B2 --> B1[iperf3 server]
     end
-    A3 -- "ICMP / fakeTCP 封装<br/>192.168.122.0/24 (virtio)" --> B3
+    A3 -- "ICMP / fakeTCP encapsulation<br/>192.168.122.0/24 (virtio)" --> B3
 ```
 
-## 性能测试数据汇总
+## Performance Summary
 
-| 测试场景 | 测试方向 | 平均速率 (Gbits/sec) | 性能损失 (相比直接连接) | 观察到的CPU占用 |
+| Test Scenario | Direction | Avg Throughput (Gbits/sec) | Performance Loss (vs Direct) | Observed CPU Usage |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. 直接连接 (基准)** | 发送 | **21.8** | 0% (基准) | 单核 100% (iperf3 瓶颈) |
-| | 接收 | **19.2** | 0% (基准) | 单核 100% (iperf3 瓶颈) |
-| **2. WireGuard (纯UDP)** | 发送 | **6.83** | -68.7% | 4核负载均衡 (1核~60%, 其余~40%) |
-| | 接收 | **6.79** | -64.6% | 4核负载高且均衡 (~86%) |
-| **3. WireGuard + udp2raw** | 发送 | 0.841 | -96.1% | 低负载 (1核~60%, 其余~10-30%) |
-| | 接收 | 0.684 | -96.4% | 中负载 (4核~40-50%) |
-| **4. WireGuard + phantun** | 发送 | 0.769 | -96.4% | 中负载 (4核~50%) |
-| | 接收 | 0.746 | -96.1% | 中负载 (4核~60%) |
-| **5. WireGuard + mimic** | 发送 | 3.06 | -86.0% | 高负载 (一核90%，其余3核10~20%) |
-| | 接收 | 3.09 | -83.9% | 高负载且均衡 (4核~60-70%) |
-| **6. WireGuard + pingtunnel** | 发送 | 0.49 | -97.8% | 中负载 (4核~50%) |
-| | 接收 | 0.46 | -97.6% | 中负载 (4核~60%) |
-| **7. WireGuard + tutuicmptunnel (BPF)** | 发送 | **4.42** | -79.7% | 高负载 (1核~90-100%, 其余~20-30%) |
-| | 接收 | **4.43** | -77.0% | 高负载且均衡 (4核~60-70%) |
-| **8. WireGuard + tutuicmptunnel (XDP)** | 发送 | **5.02** | -76.9% | 高负载 (1核~80%, 其余~30-40%) |
-| | 接收 | **5.01** | -73.9% | 高负载且均衡 (4核~70%) |
-| **9. WireGuard + tutuicmptunnel-kmod** | 发送 | **5.51** | -74.7% | 高负载 (单核80%，其余三核30～40%) |
-| | 接收 | **5.27** | -72.6% | 高负载且均衡 (4核~60-70%) |
+| **1. Direct Connection (Baseline)** | Send | **21.8** | 0% (baseline) | Single core 100% (iperf3 bottleneck) |
+| | Recv | **19.2** | 0% (baseline) | Single core 100% (iperf3 bottleneck) |
+| **2. WireGuard (Pure UDP)** | Send | **6.83** | -68.7% | 4-core balanced (1 core ~60%, others ~40%) |
+| | Recv | **6.79** | -64.6% | 4-core high and balanced (~86%) |
+| **3. WireGuard + udp2raw** | Send | 0.841 | -96.1% | Low load (1 core ~60%, others ~10-30%) |
+| | Recv | 0.684 | -96.4% | Medium load (4-core ~40-50%) |
+| **4. WireGuard + phantun** | Send | 0.769 | -96.4% | Medium load (4-core ~50%) |
+| | Recv | 0.746 | -96.1% | Medium load (4-core ~60%) |
+| **5. WireGuard + mimic** | Send | 3.06 | -86.0% | High load (1 core 90%, others 3 cores 10~20%) |
+| | Recv | 3.09 | -83.9% | High load and balanced (4-core ~60-70%) |
+| **6. WireGuard + pingtunnel** | Send | 0.49 | -97.8% | Medium load (4-core ~50%) |
+| | Recv | 0.46 | -97.6% | Medium load (4-core ~60%) |
+| **7. WireGuard + tutuicmptunnel (BPF)** | Send | **4.42** | -79.7% | High load (1 core ~90-100%, others ~20-30%) |
+| | Recv | **4.43** | -77.0% | High load and balanced (4-core ~60-70%) |
+| **8. WireGuard + tutuicmptunnel (XDP)** | Send | **5.02** | -76.9% | High load (1 core ~80%, others ~30-40%) |
+| | Recv | **5.01** | -73.9% | High load and balanced (4-core ~70%) |
+| **9. WireGuard + tutuicmptunnel-kmod** | Send | **5.51** | -74.7% | High load (single core 80%, others 3 cores 30~40%) |
+| | Recv | **5.27** | -72.6% | High load and balanced (4-core ~60-70%) |
 
 ```mermaid
 xychart-beta
-    title "发送方向吞吐量对比 (Gbits/sec)"
-    x-axis ["直接连接", "WireGuard", "udp2raw", "phantun", "mimic", "pingtunnel", "tutu(BPF)", "tutu(XDP)", "tutu(kmod)"]
+    title "Send Direction Throughput Comparison (Gbits/sec)"
+    x-axis ["Direct", "WireGuard", "udp2raw", "phantun", "mimic", "pingtunnel", "tutu(BPF)", "tutu(XDP)", "tutu(kmod)"]
     y-axis "Gbits/sec" 0 --> 23
     bar [21.8, 6.83, 0.841, 0.769, 3.06, 0.49, 4.42, 5.02, 5.51]
 ```
 
 ```mermaid
 xychart-beta
-    title "接收方向吞吐量对比 (Gbits/sec)"
-    x-axis ["直接连接", "WireGuard", "udp2raw", "phantun", "mimic", "pingtunnel", "tutu(BPF)", "tutu(XDP)", "tutu(kmod)"]
+    title "Receive Direction Throughput Comparison (Gbits/sec)"
+    x-axis ["Direct", "WireGuard", "udp2raw", "phantun", "mimic", "pingtunnel", "tutu(BPF)", "tutu(XDP)", "tutu(kmod)"]
     y-axis "Gbits/sec" 0 --> 21
     bar [19.2, 6.79, 0.684, 0.746, 3.09, 0.46, 4.43, 5.01, 5.27]
 ```
 
-## 结论
+## Conclusion
 
-从整体结果看，UDP 伪装层的开销差异极大，大致可分为三档：
+Overall, the overhead of UDP obfuscation layers varies dramatically, roughly falling into three tiers:
 
-**第一档是 `tutuicmptunnel` 系列。** BPF 版本收发均在 4.4 Gbps 左右，达到纯 WireGuard 直连的约 65%；开启 XDP ingress 后提升到约 5 Gbps；内核模块（kmod）版本最快，收发分别达到 5.51 和 5.27 Gbps，约为 BPF 版的 1.2 倍——`nftables` 内核路径确实比 BPF 更短。三者都已逼近纯 WireGuard 的性能，说明瓶颈主要在 WireGuard 本身而非伪装层。
+**Tier 1: `tutuicmptunnel` family.** The BPF version achieves ~4.4 Gbps for both send and receive, reaching about 65% of pure WireGuard direct connection; with XDP ingress enabled, it improves to ~5 Gbps; the kernel module (kmod) version is the fastest, achieving 5.51 and 5.27 Gbps for send and receive respectively, about 1.2x faster than the BPF version—the `nftables` kernel path is indeed shorter than BPF. All three are approaching pure WireGuard performance, indicating the bottleneck lies mainly in WireGuard itself rather than the obfuscation layer.
 
-**第二档是 `mimic`。** 作为同样基于 BPF 的 fakeTCP 工具，它能跑到约 3 Gbps，但只相当于 `tutuicmptunnel`（BPF）的 70% 左右，且发送方向单核打满，扩展性一般。
+**Tier 2: `mimic`.** As a BPF-based fakeTCP tool, it achieves ~3 Gbps, but only about 70% of `tutuicmptunnel` (BPF), with single-core saturation in the send direction and limited scalability.
 
-**第三档是 `udp2raw`、`phantun` 和 `pingtunnel`，均在 1 Gbps 以下。** 三者中 `pingtunnel` 最慢（收发不足 0.5 Gbps），`tutuicmptunnel` 比它快约 9 倍；`udp2raw` 与 `phantun` 互有胜负，`tutuicmptunnel` 比它们快 5~6 倍。值得注意的是 `udp2raw` 波动剧烈，测试中一度跌到 280 Mbps，推测是用户态进程调度抖动所致，多核设计的 `phantun` 相对稳定一些，而 `tutuicmptunnel` 全程没有出现类似抖动。
+**Tier 3: `udp2raw`, `phantun`, and `pingtunnel`, all below 1 Gbps.** Among them, `pingtunnel` is the slowless (send/receive below 0.5 Gbps), `tutuicmptunnel` is ~9x faster; `udp2raw` and `phantun` trade wins, `tutuicmptunnel` is 5-6x faster than them. Notably, `udp2raw` exhibits severe fluctuation, dropping to 280 Mbps at times during testing, likely due to userspace process scheduling jitter. The multi-core designed `phantun` is relatively more stable, while `tutuicmptunnel` showed no similar jitter throughout the test.
 
 ---
 
-## 详细配置与原始数据
+## Detailed Configuration & Raw Data
 
-以下保留各场景的完整配置与 `iperf3` 原始输出，供查证，默认折叠。
+The complete configuration and `iperf3` raw output for each scenario are preserved below for verification, collapsed by default.
 
 <details>
-<summary><strong>`iperf3` 直接连接（基准）</strong></summary>
+<summary><strong>`iperf3` Direct Connection (Baseline)</strong></summary>
 
 `mtu`: 1500
 
@@ -114,7 +118,7 @@ Connecting to host peer, port 5201
 
 iperf Done.
 
-cpu占用率：单核100%
+CPU usage: single core 100%
 
 hrimfaxi in 🌐 archlinux2 in ~ took 20s 
 ❯ iperf3 -c peer -t 20 -R
@@ -149,17 +153,17 @@ Reverse mode, remote host peer is sending
 
 iperf Done.
 
-cpu占用率：单核100%
+CPU usage: single core 100%
 ```
 
 </details>
 
 <details>
-<summary><strong>`wireguard`（纯 UDP）</strong></summary>
+<summary><strong>`wireguard` (Pure UDP)</strong></summary>
 
 `MTU`: 1420
 
-`iperf3`测速
+`iperf3` speed test
 
 ```sh
 [root@archlinux2 wireguard]# iperf3 -c peer-wg -t 20
@@ -191,7 +195,7 @@ Connecting to host peer-wg, port 5201
 [  5]   0.00-20.00  sec  15.9 GBytes  6.83 Gbits/sec  458            sender
 [  5]   0.00-20.00  sec  15.9 GBytes  6.83 Gbits/sec                  receiver
 
-cpu占用率：3个核大约40%, 1个核大约60%
+CPU usage: 3 cores ~40%, 1 core ~60%
 
 iperf Done.
 [root@archlinux2 wireguard]# iperf3 -c peer-wg -t 20 -R
@@ -226,7 +230,7 @@ Reverse mode, remote host peer-wg is sending
 
 iperf Done.
 
-cpu占用率：4核大约86%
+CPU usage: 4 cores ~86%
 ```
 
 </details>
@@ -234,10 +238,10 @@ cpu占用率：4核大约86%
 <details>
 <summary><strong>`wireguard` + `udp2raw`</strong></summary>
 
-udp2raw 命令：
+udp2raw commands:
 
 ```sh
-# 服务器A
+# Server A
 sudo udp2raw -s \
     --raw-mode icmp \
     -l 0.0.0.0:1234 \
@@ -246,7 +250,7 @@ sudo udp2raw -s \
     --cipher-mode none \
     --auth-mode none \
     --fix-gro
-# 服务器B
+# Server B
 sudo udp2raw -c \
     --raw-mode icmp \
     -l 127.0.0.1:1234 \
@@ -258,7 +262,7 @@ sudo udp2raw -c \
 ```
 
 `MTU`: 1342
-`wireguard` 需要将 `endpoint` 修改为 `127.0.0.1:1234`。
+`wireguard` needs to change `endpoint` to `127.0.0.1:1234`.
 
 ```sh
 ❯ iperf3 -c peer-wg -t 20
@@ -292,7 +296,7 @@ Connecting to host peer-wg, port 5201
 
 iperf Done.
 
-cpu占用率：3个核大约10~30%, 1个核大约60%
+CPU usage: 3 cores ~10-30%, 1 core ~60%
 
 
 ❯ iperf3 -c peer-wg -t 20  -R
@@ -327,7 +331,7 @@ Reverse mode, remote host peer-wg is sending
 
 iperf Done.
 
-cpu占用率：4个核大约40~50%
+CPU usage: 4 cores ~40-50%
 ```
 
 </details>
@@ -336,7 +340,7 @@ cpu占用率：4个核大约40~50%
 <summary><strong>`wireguard` + `phantun`</strong></summary>
 
 ```
-服务器：
+Server:
 sysctl net.ipv4.ip_forward=1
 iptables -t nat -A PREROUTING -p tcp -i enp1s0 --dport 4567 -j DNAT --to-destination 192.168.201.2
 RUST_LOG=info /usr/local/bin/phantun_server --local 4567 --remote 127.0.0.1:1234
@@ -344,7 +348,7 @@ RUST_LOG=info /usr/local/bin/phantun_server --local 4567 --remote 127.0.0.1:1234
 wg0.conf:
 ListenPort = 1234
 
-客户端:
+Client:
 sysctl net.ipv4.ip_forward=1
 iptables -t nat -A POSTROUTING -o enp1s0 -j MASQUERADE
 RUST_LOG=info /usr/local/bin/phantun_client --local 127.0.0.1:1234 --remote peer:4567
@@ -353,7 +357,7 @@ wg0.conf:
 Endpoint = 127.0.0.1:1234 # phantun
 ```
 
-iperf3 测速结果：
+iperf3 speed test results:
 
 ```
 ❯ iperf3 -c peer-wg -t 20
@@ -387,7 +391,7 @@ Connecting to host peer-wg, port 5201
 
 iperf Done.
 
-cpu占用率： 4核50%左右
+CPU usage: 4 cores ~50%
 
 ❯ iperf3 -c peer-wg -t 20 -R
 Connecting to host peer-wg, port 5201
@@ -421,7 +425,7 @@ Reverse mode, remote host peer-wg is sending
 
 iperf Done.
 
-cpu占用率： 4核60%左右
+CPU usage: 4 cores ~60%
 ```
 
 </details>
@@ -429,7 +433,7 @@ cpu占用率： 4核60%左右
 <details>
 <summary><strong>`wireguard` + `mimic`</strong></summary>
 
-> 服务器配置
+> Server configuration
 
 ```ini
 log.verbosity = error
@@ -440,7 +444,7 @@ max_window = false
 filter = local=192.168.122.58:51820
 ```
 
-> 客户端配置
+> Client configuration
 
 ```ini
 log.verbosity = 0
@@ -485,7 +489,7 @@ Connecting to host peer-wg, port 5201
 
 iperf Done.
 
-CPU占用率： 一核90%，其余3核10~20%
+CPU usage: 1 core 90%, others 3 cores 10~20%
 
 ❯ iperf3 -c peer-wg -t 20 -R
 Connecting to host peer-wg, port 5201
@@ -519,7 +523,7 @@ Reverse mode, remote host peer-wg is sending
 
 iperf Done.
 
-CPU占用率： 4核60~70%
+CPU usage: 4 cores 60~70%
 ```
 
 </details>
@@ -527,20 +531,20 @@ CPU占用率： 4核60~70%
 <details>
 <summary><strong>`wireguard` + `pingtunnel`</strong></summary>
 
-基于原始套接字的 ICMP 转发隧道，支持转发 `udp` / `tcp` / `socks5`。
+ICMP forwarding tunnel based on raw sockets, supports forwarding `udp` / `tcp` / `socks5`.
 
 ```
-服务器：
+Server:
 sudo tee /proc/sys/net/ipv4/icmp_echo_ignore_all <<< 1
 sudo pingtunnel -type server
 
-客户端：
+Client:
 sudo tee /proc/sys/net/ipv4/icmp_echo_ignore_all <<< 1
-# 开启udp转发到服务器的wireguard端口51820
+# Enable UDP forwarding to server's wireguard port 51820
 sudo pingtunnel -type client -l :4455  -s 192.168.122.58 -t 127.0.0.1:51820
 ```
 
-iperf3 测速结果：
+iperf3 speed test results:
 
 ```
 ❯ iperf3 -c peer-wg -t 20  
@@ -572,7 +576,7 @@ Connecting to host peer-wg, port 5201
 [  5]   0.00-20.00  sec  1.15 GBytes   495 Mbits/sec  1187            sender
 [  5]   0.00-19.99  sec  1.15 GBytes   495 Mbits/sec                  receiver
 
-cpu占用率: 4核40%左右。
+CPU usage: 4 cores ~40%.
 
 ❯ iperf3 -c peer-wg -t 20  -R
 Connecting to host peer-wg, port 5201
@@ -606,7 +610,7 @@ Reverse mode, remote host peer-wg is sending
 
 iperf Done.
 
-cpu占用率: 4核50%左右。
+CPU usage: 4 cores ~50%.
 ```
 
 </details>
@@ -614,11 +618,11 @@ cpu占用率: 4核50%左右。
 <details>
 <summary><strong>`wireguard` + `tutuicmptunnel`</strong></summary>
 
-* `tutu_csum_fixup`：未启用 `force_sw_checksum=1`
-* `MTU`：与 `wireguard` 相同，1420
-* `TUTU_UID`：102
+* `tutu_csum_fixup`: `force_sw_checksum=1` not enabled
+* `MTU`: Same as `wireguard`, 1420
+* `TUTU_UID`: 102
 
-`wg0.conf`添加到`[Interface]`:
+Add to `wg0.conf` `[Interface]`:
 ```
 PreUp = env_file=$(dirname $CONFIG_FILE)/tutuicmptunnel.wg0; source $env_file && tuctl client-add user $TUTU_UID address $ADDR port $PORT comment $COMMENT || true
 PreUp = env_file=$(dirname $CONFIG_FILE)/tutuicmptunnel.wg0; source $env_file && IP=192.168.122.187 && tuctl_client server $ADDR server-port $SERVER_PORT psk $PSK <<< "server-add user $TUTU_UID comment $COMMENT address $IP port $PORT" || true
@@ -638,7 +642,7 @@ PSK=yourverylongpsk
 COMMENT=vm-wireguard
 ```
 
-iperf3 测速结果：
+iperf3 speed test results:
 ```
 ❯ iperf3 -c peer-wg -t 20 
 Connecting to host peer-wg, port 5201
@@ -671,7 +675,7 @@ Connecting to host peer-wg, port 5201
 
 iperf Done.
 
-cpu占用率：3核20～30%，1核90～100%
+CPU usage: 3 cores 20~30%, 1 core 90~100%
 
 ❯ iperf3 -c peer-wg -t 20 -R
 Connecting to host peer-wg, port 5201
@@ -705,13 +709,13 @@ Reverse mode, remote host peer-wg is sending
 
 iperf Done.
 
-cpu占用率：4核60～70%
+CPU usage: 4 cores 60~70%
 ```
 
 </details>
 
 <details>
-<summary><strong>`wireguard` + `tutuicmptunnel`（ENABLE_XDP_INGRESS）</strong></summary>
+<summary><strong>`wireguard` + `tutuicmptunnel` (ENABLE_XDP_INGRESS)</strong></summary>
 
 ```
 hrimfaxi in 🌐 vm in ~ took 20s
@@ -746,7 +750,7 @@ Connecting to host peer-wg, port 5201
 
 iperf Done.
 
-cpu占用率: 单核80%，其余三核30～40%
+CPU usage: single core 80%, others 3 cores 30~40%
 
 hrimfaxi in 🌐 vm in ~ took 20s
 ❯ iperf3 -c peer-wg -t 20 -R
@@ -779,7 +783,7 @@ Reverse mode, remote host peer-wg is sending
 [  5]   0.00-20.00  sec  11.7 GBytes  5.01 Gbits/sec  1094            sender
 [  5]   0.00-20.00  sec  11.7 GBytes  5.01 Gbits/sec                  receiver
 
-cpu占用率: 四核70%左右
+CPU usage: 4 cores ~70%
 
 iperf Done.
 
@@ -822,9 +826,9 @@ Connecting to host peer-wg, port 5201
 
 iperf Done.
 
-cpu占用率: 单核80%，其余三核30～40%
+CPU usage: single core 80%, others 3 cores 30~40%
 
-hrimfaxi in 🌐 archlinux2 in tutuicmptunnel/kmod on  kmod [!?] via C v15.2.1-gcc took 20s
+hrimfaxi in 🌐 archlinux2 in tutuicmptunnel/kmod on  kmod [!?] via C v15.2.1-gcc took 20s
 ❯ iperf3 -c peer-wg  -t 20 -R
 Connecting to host peer-wg, port 5201
 Reverse mode, remote host peer-wg is sending
@@ -855,7 +859,7 @@ Reverse mode, remote host peer-wg is sending
 [  5]   0.00-20.00  sec  12.3 GBytes  5.27 Gbits/sec  129            sender
 [  5]   0.00-20.00  sec  12.3 GBytes  5.27 Gbits/sec                  receiver
 
-cpu占用率: 四核80%左右
+CPU usage: 4 cores ~80%
 
 iperf Done.
 ```

@@ -1,4 +1,8 @@
-# xray + hysteria
+# xray-core 客户端 + Hysteria 服务端（配合 tutuicmptunnel）
+
+[English](./xray_hysteria.md) | [简体中文](./xray_hysteria_zh-CN.md)
+
+---
 
 ## 概述
 
@@ -96,24 +100,27 @@ Environment="QUIC_GO_DISABLE_GSO=1"
 
 ## tutuicmptunnel 配置
 
-如果你当前仍然依赖 `tutuicmptunnel` 提供链路接入，那么这一部分可以基本保持不变，只需要将目标端口改为你实际使用的 Hysteria 端口。
+隧道配置与 [hysteria 教程](/docs/hysteria_zh-CN.md) 基本相同，只需将目标端口改为 Hysteria 实际使用的端口（本文示例为 `3323`）。
 
-首先检查服务器 / 客户端两侧是否有共同的 `/etc/tutuicmptunnel/uids` 配置：
+### 1. 检查 UID
 
-```txt
+确认服务器与客户端两侧的 `/etc/tutuicmptunnel/uids` 中有共同配置，例如：
+
+```text
 123 your_user_name
 ```
 
-然后检查服务器 / 客户端两侧是否都已经加载 `tutu_csum_fixup.ko`，并且 `tuctl` 可以访问设备：
+确认两端 BPF 程序已加载，且 `tuctl` 可以正常访问：
 
-```sh
-sudo lsmod | grep tutu_csum_fixup
+```bash
 sudo tuctl -d
 ```
 
-使用以下简单脚本在客户端运行，会同步配置到服务器 / 客户端两侧：
+### 2. 配置同步脚本
 
-```sh
+在客户端保存以下脚本，运行后会同时更新客户端与服务器两侧的隧道规则：
+
+```bash
 #!/bin/sh
 
 V() {
@@ -125,8 +132,8 @@ TMP=$(mktemp)
 export DEV=enp4s0 # 你的客户端上网接口名
 
 sudo tuctl dump > "$TMP"
-sudo rmmod tutu_csum_fixup
-sudo modprobe tutu_csum_fixup
+sudo tuctl unload iface "$DEV"
+sudo tuctl load iface "$DEV"
 
 export TUTU_UID=your_user_name   # 替换为服务器上选好的 uid
 export ADDRESS=your-server.example.com # 替换为你的服务端域名或 IP
@@ -134,7 +141,6 @@ export PORT=3323                 # Hysteria 服务端 UDP 端口
 
 sudo tuctl script - < "$TMP"
 rm -f "$TMP"
-sudo tuctl load iface "$DEV"
 sudo tuctl client
 sudo tuctl client-del address "$ADDRESS" user "$TUTU_UID"
 sudo tuctl client-add address "$ADDRESS" port "$PORT" user "$TUTU_UID"
@@ -152,7 +158,9 @@ printf "server\nserver-add uid $TUTU_UID address @client_ip@ port $PORT comment 
 # vim: set sw=2 ts=2 et:
 ```
 
-如果你使用 `systemd` 启动 `xray-core`，可以在单元文件中同时加入环境变量和预启动脚本：
+### 3. 启动
+
+在启动 xray-core 客户端前运行上述脚本即可。如果使用 systemd 管理 xray-core，可以把环境变量和预启动脚本一起写进单元文件，免去手动执行：
 
 ```ini
 [Service]
@@ -160,9 +168,7 @@ Environment="QUIC_GO_DISABLE_GSO=1"
 ExecStartPre=/path/to/your/script.sh
 ```
 
-启动 `xray-core` 客户端前运行脚本即可。你也可以在 `xray-core` 的 `systemd` 单元文件中添加 `ExecStartPre` 自动运行这个脚本，这样就不必每次手动执行。
+## 开机自启与 IP 变更
 
-## 开机自启
-
-参见 Hysteria 相关部署方式，也可以继续使用 `crontab` 或 `systemd-timer` 定期调用上述脚本，以便在公网 IP 变化后自动更新。
+如果客户端公网 IP 会变化，可以使用 `crontab` 或 `systemd` timer 定期调用上述脚本自动更新，具体写法参见 [hysteria 教程](/docs/hysteria_zh-CN.md) 的「定时同步客户端 IP」一节。
 
