@@ -1,13 +1,84 @@
 # 性能测试
 
-## 配置信息
+本文对比 `tutuicmptunnel`（BPF / XDP / kmod 三种实现）与 `udp2raw`、`phantun`、`mimic`、`pingtunnel` 等常见 UDP 伪装方案承载 WireGuard 时的吞吐性能。所有测试均在相同的两台虚拟机之间进行，命令统一为 `iperf3 -t 20`，发送与接收方向各测一次。
 
-* 宿主CPU: `Ryzen7 5700x`, `Arch Linux` (2025-07-10), 64G内存
-* 两台`Arch Linux` `libvrt QEMU/KVM`， 4个`CPU`, 虚拟网卡`virtio`
-* 测试命令`iperf3 -s`和`iperf3 -c <IP> -t 20`
-* `wireguard`为`ipv4`模式
+## 测试环境
 
-## `iperf3`直接连接
+* 宿主机：`Ryzen 7 5700X`，`Arch Linux`（2025-07-10），64G 内存
+* 测试机：两台 `Arch Linux` 虚拟机（`libvirt QEMU/KVM`，各 4 vCPU，网卡 `virtio`）
+* 测试命令：`iperf3 -s` 与 `iperf3 -c <IP> -t 20`，反向测试加 `-R`
+* WireGuard 工作于 IPv4 模式
+
+```mermaid
+flowchart LR
+    subgraph VMA["虚拟机 A (4 vCPU, virtio)"]
+        A1[iperf3 client] --> A2[WireGuard wg0<br/>10.200.103.1]
+        A2 --> A3[隧道层<br/>tutuicmptunnel / udp2raw /<br/>phantun / mimic / pingtunnel]
+    end
+    subgraph VMB["虚拟机 B (4 vCPU, virtio)"]
+        B3[隧道层] --> B2[WireGuard wg0<br/>10.200.103.2]
+        B2 --> B1[iperf3 server]
+    end
+    A3 -- "ICMP / fakeTCP 封装<br/>192.168.122.0/24 (virtio)" --> B3
+```
+
+## 性能测试数据汇总
+
+| 测试场景 | 测试方向 | 平均速率 (Gbits/sec) | 性能损失 (相比直接连接) | 观察到的CPU占用 |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. 直接连接 (基准)** | 发送 | **21.8** | 0% (基准) | 单核 100% (iperf3 瓶颈) |
+| | 接收 | **19.2** | 0% (基准) | 单核 100% (iperf3 瓶颈) |
+| **2. WireGuard (纯UDP)** | 发送 | **6.83** | -68.7% | 4核负载均衡 (1核~60%, 其余~40%) |
+| | 接收 | **6.79** | -64.6% | 4核负载高且均衡 (~86%) |
+| **3. WireGuard + udp2raw** | 发送 | 0.841 | -96.1% | 低负载 (1核~60%, 其余~10-30%) |
+| | 接收 | 0.684 | -96.4% | 中负载 (4核~40-50%) |
+| **4. WireGuard + phantun** | 发送 | 0.769 | -96.4% | 中负载 (4核~50%) |
+| | 接收 | 0.746 | -96.1% | 中负载 (4核~60%) |
+| **5. WireGuard + mimic** | 发送 | 3.06 | -86.0% | 高负载 (一核90%，其余3核10~20%) |
+| | 接收 | 3.09 | -83.9% | 高负载且均衡 (4核~60-70%) |
+| **6. WireGuard + pingtunnel** | 发送 | 0.49 | -97.8% | 中负载 (4核~50%) |
+| | 接收 | 0.46 | -97.6% | 中负载 (4核~60%) |
+| **7. WireGuard + tutuicmptunnel (BPF)** | 发送 | **4.42** | -79.7% | 高负载 (1核~90-100%, 其余~20-30%) |
+| | 接收 | **4.43** | -77.0% | 高负载且均衡 (4核~60-70%) |
+| **8. WireGuard + tutuicmptunnel (XDP)** | 发送 | **5.02** | -76.9% | 高负载 (1核~80%, 其余~30-40%) |
+| | 接收 | **5.01** | -73.9% | 高负载且均衡 (4核~70%) |
+| **9. WireGuard + tutuicmptunnel-kmod** | 发送 | **5.51** | -74.7% | 高负载 (单核80%，其余三核30～40%) |
+| | 接收 | **5.27** | -72.6% | 高负载且均衡 (4核~60-70%) |
+
+```mermaid
+xychart-beta
+    title "发送方向吞吐量对比 (Gbits/sec)"
+    x-axis ["直接连接", "WireGuard", "udp2raw", "phantun", "mimic", "pingtunnel", "tutu(BPF)", "tutu(XDP)", "tutu(kmod)"]
+    y-axis "Gbits/sec" 0 --> 23
+    bar [21.8, 6.83, 0.841, 0.769, 3.06, 0.49, 4.42, 5.02, 5.51]
+```
+
+```mermaid
+xychart-beta
+    title "接收方向吞吐量对比 (Gbits/sec)"
+    x-axis ["直接连接", "WireGuard", "udp2raw", "phantun", "mimic", "pingtunnel", "tutu(BPF)", "tutu(XDP)", "tutu(kmod)"]
+    y-axis "Gbits/sec" 0 --> 21
+    bar [19.2, 6.79, 0.684, 0.746, 3.09, 0.46, 4.43, 5.01, 5.27]
+```
+
+## 结论
+
+从整体结果看，UDP 伪装层的开销差异极大，大致可分为三档：
+
+**第一档是 `tutuicmptunnel` 系列。** BPF 版本收发均在 4.4 Gbps 左右，达到纯 WireGuard 直连的约 65%；开启 XDP ingress 后提升到约 5 Gbps；内核模块（kmod）版本最快，收发分别达到 5.51 和 5.27 Gbps，约为 BPF 版的 1.2 倍——`nftables` 内核路径确实比 BPF 更短。三者都已逼近纯 WireGuard 的性能，说明瓶颈主要在 WireGuard 本身而非伪装层。
+
+**第二档是 `mimic`。** 作为同样基于 BPF 的 fakeTCP 工具，它能跑到约 3 Gbps，但只相当于 `tutuicmptunnel`（BPF）的 70% 左右，且发送方向单核打满，扩展性一般。
+
+**第三档是 `udp2raw`、`phantun` 和 `pingtunnel`，均在 1 Gbps 以下。** 三者中 `pingtunnel` 最慢（收发不足 0.5 Gbps），`tutuicmptunnel` 比它快约 9 倍；`udp2raw` 与 `phantun` 互有胜负，`tutuicmptunnel` 比它们快 5~6 倍。值得注意的是 `udp2raw` 波动剧烈，测试中一度跌到 280 Mbps，推测是用户态进程调度抖动所致，多核设计的 `phantun` 相对稳定一些，而 `tutuicmptunnel` 全程没有出现类似抖动。
+
+---
+
+## 详细配置与原始数据
+
+以下保留各场景的完整配置与 `iperf3` 原始输出，供查证，默认折叠。
+
+<details>
+<summary><strong>`iperf3` 直接连接（基准）</strong></summary>
 
 `mtu`: 1500
 
@@ -81,7 +152,10 @@ iperf Done.
 cpu占用率：单核100%
 ```
 
-## `wireguard`
+</details>
+
+<details>
+<summary><strong>`wireguard`（纯 UDP）</strong></summary>
 
 `MTU`: 1420
 
@@ -155,9 +229,12 @@ iperf Done.
 cpu占用率：4核大约86%
 ```
 
-## `wireguard`+`udp2raw`
+</details>
 
-udp2raw命令:
+<details>
+<summary><strong>`wireguard` + `udp2raw`</strong></summary>
+
+udp2raw 命令：
 
 ```sh
 # 服务器A
@@ -181,7 +258,7 @@ sudo udp2raw -c \
 ```
 
 `MTU`: 1342
-`wireguard`需要修改`endpoint`为`127.0.0.1:1234`
+`wireguard` 需要将 `endpoint` 修改为 `127.0.0.1:1234`。
 
 ```sh
 ❯ iperf3 -c peer-wg -t 20
@@ -253,7 +330,10 @@ iperf Done.
 cpu占用率：4个核大约40~50%
 ```
 
-## wireguard和phantun
+</details>
+
+<details>
+<summary><strong>`wireguard` + `phantun`</strong></summary>
 
 ```
 服务器：
@@ -273,7 +353,7 @@ wg0.conf:
 Endpoint = 127.0.0.1:1234 # phantun
 ```
 
-iperf测速结果
+iperf3 测速结果：
 
 ```
 ❯ iperf3 -c peer-wg -t 20
@@ -344,7 +424,10 @@ iperf Done.
 cpu占用率： 4核60%左右
 ```
 
-## `wireguard`和`mimic`
+</details>
+
+<details>
+<summary><strong>`wireguard` + `mimic`</strong></summary>
 
 > 服务器配置
 
@@ -439,9 +522,12 @@ iperf Done.
 CPU占用率： 4核60~70%
 ```
 
-## `wireguard`和`pingtunnel`
+</details>
 
-基于原始套接字的ICMP转发隧道，支持`udp`和`tcp`和`socks5`
+<details>
+<summary><strong>`wireguard` + `pingtunnel`</strong></summary>
+
+基于原始套接字的 ICMP 转发隧道，支持转发 `udp` / `tcp` / `socks5`。
 
 ```
 服务器：
@@ -454,7 +540,7 @@ sudo tee /proc/sys/net/ipv4/icmp_echo_ignore_all <<< 1
 sudo pingtunnel -type client -l :4455  -s 192.168.122.58 -t 127.0.0.1:51820
 ```
 
-iperf3测试结果：
+iperf3 测速结果：
 
 ```
 ❯ iperf3 -c peer-wg -t 20  
@@ -523,11 +609,14 @@ iperf Done.
 cpu占用率: 4核50%左右。
 ```
 
-## `wireguard`和`tutuicmptunnel`
+</details>
 
-`tutu_csum_fixup`: 没有启用`force_sw_checksum=1`
-`MTU`: 和`wireguard`一样是1420。
-`TUTU_UID`: 102
+<details>
+<summary><strong>`wireguard` + `tutuicmptunnel`</strong></summary>
+
+* `tutu_csum_fixup`：未启用 `force_sw_checksum=1`
+* `MTU`：与 `wireguard` 相同，1420
+* `TUTU_UID`：102
 
 `wg0.conf`添加到`[Interface]`:
 ```
@@ -549,7 +638,7 @@ PSK=yourverylongpsk
 COMMENT=vm-wireguard
 ```
 
-iperf测速结果
+iperf3 测速结果：
 ```
 ❯ iperf3 -c peer-wg -t 20 
 Connecting to host peer-wg, port 5201
@@ -619,7 +708,10 @@ iperf Done.
 cpu占用率：4核60～70%
 ```
 
-## `wireguard`和`tutuicmptunnel`(ENABLE_XDP_INGRESS)
+</details>
+
+<details>
+<summary><strong>`wireguard` + `tutuicmptunnel`（ENABLE_XDP_INGRESS）</strong></summary>
 
 ```
 hrimfaxi in 🌐 vm in ~ took 20s
@@ -693,7 +785,10 @@ iperf Done.
 
 ```
 
-## `wireguard`和`tutuicmptunnel-kmod`
+</details>
+
+<details>
+<summary><strong>`wireguard` + `tutuicmptunnel-kmod`</strong></summary>
 
 ```
 ❯ iperf3 -c peer-wg  -t 20
@@ -765,42 +860,4 @@ cpu占用率: 四核80%左右
 iperf Done.
 ```
 
-## 总结
-
-### 性能测试数据汇总表
-
-| 测试场景 | 测试方向 | 平均速率 (Gbits/sec) | 性能损失 (相比直接连接) | 观察到的CPU占用 |
-| :--- | :--- | :--- | :--- | :--- |
-| **1. 直接连接 (基准)** | **发送 (Send)** | **21.8** | **0% (基准)** | 单核 100% (iperf3 瓶颈) |
-| | **接收 (Receive)** | **19.2** | **0% (基准)** | 单核 100% (iperf3 瓶颈) |
-| **2. WireGuard (纯UDP)** | **发送 (Send)** | **6.83** | **-68.7%** | 4核负载均衡 (1核\~60%, 其余\~40%) |
-| | **接收 (Receive)** | **6.79** | **-64.6%** | 4核负载高且均衡 (~86%) |
-| **3. WireGuard + udp2raw** | **发送 (Send)** | **0.841** | **-96.1%** | 低负载 (1核\~60%, 其余\~10-30%) |
-| | **接收 (Receive)** | **0.684** | **-96.4%** | 中负载 (4核~40\-50%) |
-| **4. WireGuard + phantun** | **发送 (Send)** | **0.769** | **-96.4%** | 中负载 (4核~50%) |
-| | **接收 (Receive)** | **0.746** | **-96.1%** | 中负载 (4核~60%) |
-| **5. WireGuard + mimic** | **发送 (Send)** | **3.06** | **-86.0%** | 高负载 (一核90%，其余3核10~20%) |
-| | **接收 (Receive)** | **3.09** | **-83.9%** | 高负载且均衡 (4核~60-70%) |
-| **6. WireGuard + pingtunnel** | **发送 (Send)** | **0.49** | **-97.8%** | 中负载 (4核~50%) |
-| | **接收 (Receive)** | **0.46** | **-97.6%** | 中负载 (4核~60%) |
-| **7. WireGuard + tutuicmptunnel** | **发送 (Send)** | **4.42** | **-79.7%** | 高负载 (1核\~90-100%, 其余~20-30%) |
-| | **接收 (Receive)** | **4.43** | **-77.0%** | 高负载且均衡 (4核~60-70%) |
-| **8. WireGuard + tutuicmptunnel(ENABLE_XDP_INGRESS)** | **发送 (Send)** | **5.02** | **-76.9%** | 高负载 (1核\~80%, 其余~30-40%) |
-| | **接收 (Receive)** | **5.01** | **-73.9%** | 高负载且均衡 (4核~70%) |
-| **9. WireGuard + tutuicmptunnel-kmod** | **发送 (Send)** | **5.51** | **-74.7%** | 高负载 (单核80%，其余三核30～40%) |
-| | **接收 (Receive)** | **5.27** | **-72.6%** | 高负载且均衡 (4核~60-70%) |
-
-* 在发送方向，`tutuicmptunnel` 跑出了 `4.42 Gbits/sec` 的成绩，是 `udp2raw` (`0.841 Gbits/sec`) 的 `5.26` 倍。
-* 在接收方向，`tutuicmptunnel` 跑出了 `4.43 Gbits/sec` 的成绩，是 `udp2raw` (`0.684 Gbits/sec`) 的 `6.47` 倍。
-* 在测试过程中, `udp2raw`速度波动很大，有时能低到`280Mb/s`，可能是进程调度器产生的抖动现象导致。而`tutuicmptunnel`完全没有这个现象。
-* `phantun`和`udp2raw`相差不大，发送略慢接受略快。注意到`phantun`可能由于其多核设计比`udp2raw`性能稳定点。
-  * 在发送方向，`tutuicmptunnel` 跑出了 `4.42 Gbits/sec` 的成绩，是 `phantun` (`0.769 Gbits/sec`) 的 `5.75` 倍。
-  * 在接收方向，`tutuicmptunnel` 跑出了 `4.43 Gbits/sec` 的成绩，是 `phantun` (`0.746 Gbits/sec`) 的 `5.94` 倍。
-* `pingtunnel`是使用`go`语言写的基于原始套接字的`IMCP`隧道工具，可转发`udp`/`tcp`/`socks5`。
-  * 在发送方向，`tutuicmptunnel` 跑出了 `4.42 Gbits/sec` 的成绩，是 `pingtunnel` (`0.490 Gbits/sec`) 的 `9.02` 倍。
-  * 在接收方向，`tutuicmptunnel` 跑出了 `4.43 Gbits/sec` 的成绩，是 `pingtunnel` (`0.460 Gbits/sec`) 的 `9.63` 倍。
-* `mimic`作为同为基于`bpf`的`udp`转`faketcp`工具，最大性能为`tutuicmptunnel`的70%左右。
-* `tutuicmptunnel-kmod`是基于`nftables`的内核模块版本，所以性能比`bpf`的`tutuicmptunnel`快：
-  * 在发送方向，`tutuicmptunnel-kmod` 跑出了 `5.51 Gbits/sec` 的成绩，是 `tutuicmptunnel` (`4.42 Gbits/sec`) 的 `1.25` 倍。
-  * 在接收方向，`tutuicmptunnel-kmod` 跑出了 `5.27 Gbits/sec` 的成绩，是 `tutuicmptunnel` (`4.43 Gbits/sec`) 的 `1.19` 倍。
-* `tutuicmptunnel`(`ENABLE_XDP_INGRESS`)开启了xdp ingress后提高了效率，是`tutuicmptunnel`的 (`4.42 Gbits/sec`)的 `1.14` 倍。
+</details>
