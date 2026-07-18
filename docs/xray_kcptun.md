@@ -1,4 +1,4 @@
-# xray+kcptun
+# Xray + KCPTun + tutuicmptunnel
 
 [English](./xray_kcptun.md) | [简体中文](./xray_kcptun_zh-CN.md)
 
@@ -6,55 +6,103 @@
 
 ## Overview
 
-`xray-core` is a widely used proxy tool. To improve performance and anti-interference capabilities, it can be combined with `kcptun`.
-First, forward the `xray-core` `inbound` input (usually a `TCP` port) to the `UDP` port listened to by the local `kcptun-server`.
-On the client side, a `kcptun-client` needs to be started, responsible for converting local `TCP` (such as `TLS` traffic) into the `KCP` protocol.
-At this point, intermediate nodes see `KCP` traffic (`UDP`). This is sometimes subject to `ISP` `QOS`.
-On top of this, we can use `tutuicmptunnel` to further encapsulate the `UDP` traffic, converting it into `ICMP` traffic.
-In this way, what intermediate nodes ultimately see are merely `ICMP` packets, further enhancing traffic stealthiness and penetration capabilities.
+`xray-core` is a commonly used network proxy tool. To improve transmission performance and anti-interference capability, you can layer `kcptun` on top:
+
+1. On the server side, use the `xray-core` inbound listening address (usually TCP port) as the `kcptun-server`'s target, with `kcptun-server` listening on UDP port externally;
+2. On the client side, run `kcptun-client` to convert local TCP traffic (like TLS) to KCP protocol (based on UDP) and send to server.
+
+At this point, intermediate nodes see KCP (UDP) traffic, which sometimes gets targeted QoS throttling from ISPs. To address this, you can layer `tutuicmptunnel` on both ends to further encapsulate UDP traffic and convert it to ICMP traffic. This way, intermediate nodes only see ICMP packets, further improving traffic stealth and penetration capability.
+
+The overall link is as follows:
+
+```mermaid
+flowchart LR
+    subgraph C["Client"]
+        xray_c["xray-client (TLS)"]
+        kcp_c["kcptun-client<br>Listen 127.0.0.1:3323/TCP"]
+        tmt_c["tutuicmptunnel<br>UDP → ICMP Encapsulation"]
+        ctl_c["tuctl_client<br>(Called by sync script)"]
+        xray_c -->|"TCP 3323 (Local Loopback)"| kcp_c
+        kcp_c -->|"KCP/UDP, Destination Port 3322"| tmt_c
+    end
+
+    subgraph S["Server"]
+        tmt_s["tutuicmptunnel<br>ICMP → UDP Decapsulation"]
+        kcp_s["kcptun-server<br>Listen :3322/UDP"]
+        xray_s["xray-core<br>inbound 127.0.0.1:20000/TCP"]
+        ctl_s["tuctl_server<br>Listen :14801"]
+        tmt_s --> kcp_s
+        kcp_s -->|"TCP 20000 (Local Loopback)"| xray_s
+    end
+
+    tmt_c == "ICMP (Public, Intermediate Nodes Only See This)" ==> tmt_s
+    ctl_c -. "UDP 14801 Control Channel, Register uid" .-> ctl_s
+```
+
+- **Data Plane** (solid lines): `xray`'s TLS traffic → local `kcptun-client` → encapsulated as ICMP traversing public network → server decapsulation → `kcptun-server` → back to local `xray-core`.
+- **Control Plane** (dashed lines): `tuctl_client` in `tutuicmptunnel_sync.sh` only registers uid and port with server's `tuctl_server` (14801), business traffic itself doesn't pass through it.
 
 ## Prerequisites
 
-This article assumes you already have a working `xray-core` server and client configuration, with the server listening on port `20000` (`TCP` `TLS` port).
-Simultaneously, you have installed the latest versions of `kcptun-server` and `kcptun-client` on both the server and client, placed in the `/usr/local/bin` directory.
-Next, we will first use `kcptun` to convert traffic on the communication path from `TCP` to `UDP`,
-and then use `tutuicmptunnel` to further encapsulate the `UDP` traffic into `ICMP` to achieve final data penetration and camouflage.
+This document assumes:
 
-### KCPTun-server
+- You already have a working `xray-core` server and client configuration, server listening on TCP 20000 port (TLS);
+- Both server and client have the latest `kcptun` installed, executables located in `/usr/local/bin` directory. This document uses `kcptun-server` / `kcptun-client` as binary file names, please ensure they match the actual installed file names (use `ls /usr/local/bin/` to confirm).
+
+The ports involved in this article:
+
+| Port | Protocol | Location | Purpose |
+| ----- | ---- | ------ | -------------------------- |
+| 20000 | TCP | Server | `xray-core` inbound (TLS) |
+| 3322 | UDP | Server | `kcptun-server` listening port |
+| 3323 | TCP | Client | `kcptun-client` local listening |
+| 14801 | UDP | Server | `tuctl_server` listening port |
+
+The configuration is done in two steps:
+
+1. Use `kcptun` to convert traffic from TCP to UDP (KCP) on the communication path;
+2. Use `tutuicmptunnel` to further encapsulate UDP traffic as ICMP for final penetration and camouflage.
+
+## Configure kcptun-server (Server)
 
 Create the environment variable file `/etc/default/kcptun-server`:
 
-```conf
-# SMUX version, usually 2
+```bash
+# SMUX version, usually keep at 2
 KCPTUN_SMUXVER=2
-# Recommended to generate a random one using the method below
+# Encryption key, recommended to generate randomly using the method below
 KCPTUN_KEY=LC2N0lx5_Kq6l.6l
-# xray inbound port
+# Target: xray-core's inbound address
 KCPTUN_TARGET=127.0.0.1:20000
-# UDP listening port
+# kcptun-server's UDP listening port
 KCPTUN_LISTEN=:3322
 KCPTUN_MODE=fast
 KCPTUN_CRYPT=xor
 KCPTUN_SOCKBUF=16777217
-# kcp send window size
+# KCP send window size
 KCPTUN_SNDWND=4096
-# kcp receive window size
+# KCP receive window size
 KCPTUN_RCVWND=512
 KCPTUN_DATASHARD=0
 KCPTUN_PARITYSHARD=0
-# kcp mtu value, max 1444
+# KCP MTU, max 1444
 KCPTUN_MTU=1400
 ```
 
-You can use `kcptun`'s `xor` mode to slightly mask traffic characteristics. Use the following `python3` command to generate a 16-byte `key`:
+Notes:
 
-```python
+- Encryption uses `xor` mode, which can slightly mask traffic characteristics;
+- Use the following command to generate a 16-byte random key:
+
+```bash
 python3 -c "import random, string; print('KCPTUN_KEY=' + ''.join(random.choices(string.ascii_letters + string.digits + '._', k=16)))"
 ```
 
-This `KCPTUN_KEY` must be consistent between the server and the client.
+- `KCPTUN_KEY` must be consistent between server and client.
 
-Copy the following template to `/etc/systemd/system/kcptun@.service`:
+> **Tip**: If `KCPTUN_SOCKBUF` exceeds the system default socket buffer limit, increase `net.core.rmem_max` / `net.core.wmem_max` accordingly, otherwise the setting won't take effect.
+
+Create systemd unit file `/etc/systemd/system/kcptun@.service`:
 
 ```ini
 [Unit]
@@ -70,10 +118,18 @@ ProtectSystem=full
 ProtectHome=yes
 NoNewPrivileges=true
 PrivateTmp=yes
+ProtectHostname=yes
+ProtectClock=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
 RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
 LimitNOFILE=1048576
 
-ExecStart=/usr/local/bin/kcptun_server \
+ExecStart=/usr/local/bin/kcptun-server \
   --smuxver "$KCPTUN_SMUXVER" \
   -t "$KCPTUN_TARGET" -l "$KCPTUN_LISTEN" \
   -mode "$KCPTUN_MODE" -nocomp \
@@ -97,27 +153,27 @@ Start and enable on boot:
 sudo systemctl enable --now kcptun@server
 ```
 
-### KCPTun-client
+## Configure kcptun-client (Client)
 
-`/etc/default/kcptun-client-yourhostname`:
+Create environment variable file `/etc/default/kcptun-client-yourhostname`:
 
 ```bash
-#!/bin/sh
-
+# SMUX version, consistent with server
 KCPTUN_SMUXVER=2
-# Your server address
+# Server address
 KCPTUN_HOST=yourdomain.com
-# Your KCPTUN udp port number
+# Server kcptun UDP port
 KCPTUN_PORT=3322
-# kcptun-client local listening port
+# kcptun-client local listening port (TCP)
 KCPTUN_LOCAL_PORT=3323
 KCPTUN_MODE=fast
 KCPTUN_NOCOMP=-nocomp
-KCPTUN_AUTOEXPIRE=-900
+# Auto-expire time for a single UDP session (seconds), 0 or negative disables
+KCPTUN_AUTOEXPIRE=900
 KCPTUN_DATASHARD=0
 KCPTUN_PARITYSHARD=0
 KCPTUN_CRYPT=xor
-# Same xor key as server
+# Same key as server
 KCPTUN_KEY=LC2N0lx5_Kq6l.6l
 KCPTUN_RCVWND=4096
 KCPTUN_SNDWND=256
@@ -125,7 +181,7 @@ KCPTUN_SOCKBUF=16777217
 KCPTUN_MTU=1400
 ```
 
-Edit the following `systemd` unit file `/etc/systemd/system/kcptun-client@.service`:
+Create systemd unit file `/etc/systemd/system/kcptun-client@.service`:
 
 ```ini
 [Unit]
@@ -134,21 +190,16 @@ After=network.target
 
 [Service]
 Type=simple
-
-# Load environment variables (keys, etc.), systemd style
+# Load environment variables (keys, etc.)
 EnvironmentFile=/etc/default/kcptun-client-%i
-
-# Use DynamicUser to improve isolation
+# Use DynamicUser for isolation
 DynamicUser=yes
-
-# Program must be able to listen on high ports, otherwise add CAP_NET_BIND_SERVICE
+# Capability needed for listening on low ports; kept here for convenience
 AmbientCapabilities=CAP_NET_BIND_SERVICE
-
 # File system and home directory protection
 ProtectSystem=full
 ProtectHome=yes
-
-# Extra security restrictions
+# Additional security hardening
 NoNewPrivileges=true
 PrivateTmp=yes
 ProtectHostname=yes
@@ -160,11 +211,9 @@ RestrictSUIDSGID=yes
 RestrictRealtime=yes
 RestrictNamespaces=yes
 LockPersonality=yes
-
-# Resource limits, adjust according to actual needs
+# Resource limits, adjust as needed
 LimitNOFILE=1048576
 
-# Start command (variables passed via environment variables)
 ExecStart=/usr/local/bin/kcptun-client \
     --smuxver "${KCPTUN_SMUXVER}" \
     -r "${KCPTUN_HOST}:${KCPTUN_PORT}" \
@@ -182,39 +231,41 @@ ExecStart=/usr/local/bin/kcptun-client \
     --mtu "${KCPTUN_MTU}"
 
 Restart=on-failure
-RestartSec=2s
+RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Enable the service:
+Start and enable on boot:
 
 ```bash
 sudo systemctl enable --now kcptun-client@yourhostname
-# Check if process parameters match your expectations
-ps -ef|grep kcptun
+# Verify process parameters match expectations
+ps -ef | grep kcptun
 ```
 
-### Xray Outbound Modification
+## Modify Xray Client Outbound
 
-Find your client configuration, copy it as `xxx-kcp.json`, then point `outbound` to `127.0.0.1:3323` (i.e., `KCPTun` local port), leaving other configurations unchanged.
+Copy your existing client config (e.g. `config-kcp.json`), change the outbound server address to `127.0.0.1` and port to `3323` (i.e. `kcptun-client`'s local listening port), leaving other settings unchanged. This way `xray-client`'s TLS traffic first goes to the local `kcptun-client`, which then forwards it to the remote server.
 
 Run `xray-core`:
 
 ```bash
-xray -c xxx-kcp.json
-# Use tcpdump to observe if traffic has become the expected udp traffic
-tcpdump -i any udp and port 3323 -n -v
+xray -c config-kcp.json
 ```
 
-### Setting up tutuicmptunnel
+Use `tcpdump` to verify the outbound traffic has become UDP (KCP):
 
-Use the following script to enable `ICMP`:
-
-`/usr/local/bin/tutuicmptunnel_sync.sh`:
-
+```bash
+sudo tcpdump -i any -n -v udp and port 3322
 ```
+
+## Configure tutuicmptunnel
+
+Create the sync script `/usr/local/bin/tutuicmptunnel_sync.sh`:
+
+```bash
 #!/bin/bash
 
 V() {
@@ -223,40 +274,45 @@ V() {
 }
 
 TMP=$(mktemp)
-export DEV=enp4s0 # Your client's internet interface name
+DEV=enp4s0                # Client's uplink interface name
 
-sudo tuctl dump > $TMP
-sudo tuctl unload iface $DEV
-sudo tuctl load iface $DEV
+sudo tuctl dump > "$TMP"
+sudo tuctl unload iface "$DEV"
+sudo tuctl load iface "$DEV"
 
-export TUTU_UID=yourdevice # Replace with the uid chosen on your server
-export ADDRESS=yourdomain.com # Replace with your xray-core server domain or IP
-export PORT=3323 # Replace with your xray-core server udp port
+TUTU_UID=yourdevice       # UID assigned to this client on the server
+ADDRESS=yourdomain.com    # xray-core server domain or IP
+PORT=3322                 # Server kcptun-server's UDP listening port (i.e. KCPTUN_LISTEN port)
 
-sudo tuctl script - < $TMP
+sudo tuctl script - < "$TMP"
 sudo tuctl client
-sudo tuctl client-add address $ADDRESS port $PORT user $TUTU_UID
+sudo tuctl client-add address "$ADDRESS" port "$PORT" user "$TUTU_UID"
 
-export COMMENT=yourdevice # Replace with a comment for your client; this will appear in the server's tuctl command output
-export HOST=$ADDRESS
-export PSK=yourlongpsk # Replace with your tuctl_server PSK password
-export SERVER_PORT=3321 # Replace with your tuctl_server port
+COMMENT=yourdevice        # Client comment, visible in server's tuctl output
+HOST=$ADDRESS
+PSK=yourlongpsk           # tuctl_server PSK
+SERVER_PORT=14801          # tuctl_server listening port
 
 echo "server-add uid $TUTU_UID address @client_ip@ port $PORT comment $COMMENT" | V tuctl_client \
-  psk $PSK \
-  server $HOST \
-  server-port $SERVER_PORT
+  psk "$PSK" \
+  server "$HOST" \
+  server-port "$SERVER_PORT"
 
 # vim: set sw=2 ts=2 expandtab:
 ```
 
-Run the script. If everything is normal, your `kcptun` `udp` traffic will be converted to `icmp` traffic.
-Use the following command to observe:
+Note: `PORT` matches the **destination UDP port on the wire**, i.e. the server's `kcptun-server` listening port. The client-side `3323` only exists on loopback and is TCP — it never appears as UDP on the wire, so it must not be used here.
+
+Run the script. If everything is normal, `kcptun`'s UDP traffic will be encapsulated as ICMP traffic. Observe with:
 
 ```bash
-sudo tcpdump -i any -n icmp -v
+# Should see continuous ICMP packets
+sudo tcpdump -i any -n -v icmp
+
+# Can also confirm port 3322 UDP traffic has disappeared
+sudo tcpdump -i any -n -v udp and port 3322
 ```
 
-### Enable on Boot
+## Enable on Boot
 
-Refer to [hysteria](hysteria.md). You can periodically invoke `/usr/local/bin/tutuicmptunnel_sync.sh` using `crontab` or `systemd-timer`.
+`tutuicmptunnel` configuration needs to be re-applied after BPF programs are loaded. See [hysteria](hysteria.md) for how to use `crontab` or a systemd timer to periodically call `/usr/local/bin/tutuicmptunnel_sync.sh` for auto-start.
