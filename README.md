@@ -129,7 +129,7 @@ If you still insist on running tutuicmptunnel on OpenWrt, please refer to the [O
 
 Note:
 
-- For peak performance, you can add the option `-DENABLE_XDP_INGRESS=1` in `CMake`. However, note that during debugging, `XDP ingress` modifies `ICMP` packets before `tcpdump` sees them, so you’ll typically only capture traffic that has been transformed into `UDP`.
+- For peak performance, you can add the option `-DENABLE_XDP_INGRESS=1` in `CMake`. However, note that during debugging, `XDP ingress` modifies `ICMP` packets before `tcpdump` sees them, so you'll typically only capture traffic that has been transformed into `UDP`.
 - For `Ubuntu` 20.04, you need to use the `git` version of `libbpf`/`bpftool` and disable `bpf timer` support.
 
     ```sh
@@ -265,6 +265,8 @@ Note:
 | [shadowquic](docs/shadowquic.md) | A proxy tool based on rust and the QUIC protocol, optimized for unstable and high-loss networks.                  |
 | [xray+hysteria](docs/xray_hysteria.md)    | A combination of the Xray core and the Hysteria protocol, used to accelerate and stabilize network connections. |
 | [xray+kcptun](docs/xray_kcptun.md)        | A combination of the Xray core and the KCPtun protocol, used to accelerate and stabilize network connections. |
+| [xray+mkcp](docs/xray_mkcp.md)            | Xray core with its native mKCP implementation, used to accelerate and stabilize network connections. |
+| [xray+dns](docs/xray_dns.md)            | Forward DNS queries via xray-core (dokodemo-door) on a VPS, with UDP encapsulated into ICMP on OpenWrt  |
 | [wireguard](docs/wireguard.md)            | A modern, high-performance, and easy-to-configure secure VPN tunnel.                                     |
 | [openwrt](docs/openwrt.md)                | A highly customizable Linux operating system for embedded devices, especially routers.                   |
 | [mosh](docs/mosh.md)                      | Roaming shell over UDP, launched via SSH; supports reconnection                                                |
@@ -281,7 +283,7 @@ During its design, implementation, and performance tuning, `tutuicmptunnel` has 
 * [mimic](https://github.com/hack3ric/mimic)
 * [libbpf-bootstrap](https://github.com/libbpf/libbpf-bootstrap)
 
-Special thanks to [@hack3ric] and all contributors for their continuous maintenance, making `UDP`→`fakeTCP` obfuscation on `eBPF` possible.
+Special thanks to [@hack3ric](https://github.com/hack3ric) and all contributors for their continuous maintenance, making `UDP`→`fakeTCP` obfuscation on `eBPF` possible.
 
 ## License
 

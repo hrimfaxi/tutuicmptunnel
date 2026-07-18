@@ -213,7 +213,7 @@ ExecStartPre=/usr/local/bin/tutuicmptunnel_sync.sh
 
 ## 开机自启
 
-可参见 [hysteria](hysteria.md) 中的做法，使用 `crontab` 或 systemd timer 定期调用上述脚本，实现开机自启。
+可参见 [hysteria](hysteria_zh-CN.md) 中的做法，使用 `crontab` 或 systemd timer 定期调用上述脚本，实现开机自启。
 
 ## 参见
 

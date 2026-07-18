@@ -1,26 +1,65 @@
-# openwrt客户端指南
+# OpenWrt 客户端指南
+
+[English](./openwrt.md) | [简体中文](./openwrt_zh-CN.md)
+
+---
 
 ## 概述
 
-`tutuicmptunnel` 可以在标准的 `OpenWrt` 固件上运行。
-本指南将详细介绍交叉编译 `tutuicmptunnel` 项目，使其在 `OpenWrt` 设备上成功运行客户端模式。
+`tutuicmptunnel` 依赖 `eBPF` 和 `kprobes` 等高级内核特性，无法直接在标准的 OpenWrt 固件上运行。
+标准的 OpenWrt 内核为了保持精简，默认裁剪了这些对于普通路由功能非必需的调试和追踪功能。
 
-## 环境准备
+在 OpenWrt 设备上部署客户端有两条路线：
 
-需要下载路由器品牌对应的`openwrt-sdk`包，比如你是小米路由器ax3000t，就到
-[小米ax3000t固件下载页面](https://downloads.openwrt.org/releases/24.10.5/targets/mediatek/filogic/)
-页面下方下载：
-- [openwrt-sdk](https://downloads.openwrt.org/releases/24.10.5/targets/mediatek/filogic/openwrt-sdk-24.10.5-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst)
+| 路线 | 说明 | 适合人群 |
+| :--- | :--- | :--- |
+| **方案一：自动编译（推荐）** | 使用 [openwrt-tutuicmptunnel](https://github.com/hrimfaxi/openwrt-tutuicmptunnel) 打包项目，基于 OpenWrt SDK 自动构建 | 绝大多数用户 |
+| **方案二：手工交叉编译（本文）** | 手工配置工具链，自定义 OpenWrt 内核并编译 `tutuicmptunnel` 及 `tutu_csum_fixup` 模块 | 需要修改源码、调试，或你的目标平台还没有打包配置 |
 
-然后解压到`$HOME/temp`目录。
+> [!TIP]
+> 如果你只是想在路由器上用起来，请直接走方案一——打包项目已经处理了依赖、安装路径和开机自启等细节。本文介绍的是方案二，适合需要深入控制编译过程的开发者。
 
-## 自动编译
+## 方案二：手工交叉编译
 
-参见[openwrt-tutuicmptunnel](https://github.com/hrimfaxi/openwrt-tutuicmptunnel)
+整体流程如下：
 
-## 手工交叉编译
+```mermaid
+flowchart LR
+    A[下载 OpenWrt SDK<br/>匹配路由器型号] --> B[自定义内核编译<br/>启用 BPF/kprobes]
+    B --> C[交叉编译<br/>libsodium / tutuicmptunnel<br/>tutu_csum_fixup]
+    C --> D[scp 复制到路由器<br/>tuctl* / tuctl_client<br/>.so / .ko]
+    D --> E[加载内核模块<br/>并设置开机自启]
+```
 
-以下是在`aarch64`架构的`openwrt`下的交叉编译方法。
+### 环境准备
+
+下载与你的路由器型号对应的 OpenWrt SDK。以小米 AX3000T 为例，在[固件下载页面](https://downloads.openwrt.org/releases/24.10.5/targets/mediatek/filogic/)下方找到：
+
+* [openwrt-sdk-24.10.5-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst](https://downloads.openwrt.org/releases/24.10.5/targets/mediatek/filogic/openwrt-sdk-24.10.5-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst)
+
+下载后解压到 `$HOME/temp` 目录。
+
+### 内核配置
+
+由于 OpenWrt 做了一定裁剪，需要重新编译 OpenWrt 内核形成新的固件包。在 OpenWrt `menuconfig` 中添加或修改以下选项：
+
+* `CONFIG_KERNEL_KPROBES=y`
+* `CONFIG_KERNEL_KALLSYMS=y`
+* `CONFIG_KERNEL_DEBUG_INFO=y`
+* `CONFIG_KERNEL_DEBUG_INFO_BTF=y`（需要关闭 `CONFIG_KERNEL_DEBUG_INFO_REDUCED`）
+* `CONFIG_PACKAGE_kmod-sched-core=m`
+* `CONFIG_PACKAGE_kmod-sched-bpf=m`
+
+为了方便起见，建议编译所有 OpenWrt 设备用过的 `kmod`，或者添加选项：`CONFIG_ALL_KMOD=y`。
+
+### 用户态工具
+
+需要编译以下包用于查看 `bpf` 规则和检视 `bpf` 状态，它会自动依赖 `libbpf` 从而能让 `tuctl` 正常编译：
+
+* `CONFIG_PACKAGE_tc-bpf`
+* `CONFIG_PACKAGE_bpftool-full`
+
+### 1. 设置编译环境
 
 ```bash
 export STAGING_DIR=${HOME}/temp/openwrt-sdk-24.10.5-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64/staging_dir
@@ -41,8 +80,14 @@ echo "TARGETROOT: ${TARGETROOT}"
 echo "KERNEL_DIR:  ${KERNEL_DIR}"
 echo "CC:  ${CC}"
 echo ================================================================================
+```
 
-# 编译`libsodium`
+确认输出的 `TOOLCHAIN`、`TARGETROOT`、`KERNEL_DIR` 路径均有效后再继续。
+
+### 2. 编译依赖库
+
+```bash
+# 编译 libsodium
 git clone https://github.com/jedisct1/libsodium.git
 cd libsodium
 git checkout $LIBSODIUM_TAG # 选择一个最新的稳定版发布
@@ -51,7 +96,7 @@ git checkout $LIBSODIUM_TAG # 选择一个最新的稳定版发布
   CC=${TOOLCHAIN}/bin/$ARCH-openwrt-linux-gcc
 make -j $(nproc)
 
-# 编译`libbpf`
+# 编译 libbpf
 cd ..
 git clone https://github.com/libbpf/libbpf.git
 cd libbpf
@@ -60,8 +105,11 @@ cd src
 make OBJDIR=${HOME}/temp/libbpf-build DESTDIR=${HOME}/temp/libbpf-install \
   INCLUDEDIR=/usr/lib/include LIBDIR=/usr/lib \
   install
+```
 
-# 编译`tutuicmptunnel`
+### 3. 编译 tutuicmptunnel
+
+```bash
 cd ../..
 git clone https://github.com/hrimfaxi/tutuicmptunnel.git
 cd tutuicmptunnel
@@ -84,7 +132,9 @@ make VERBOSE=1 clean all
 make install DESTDIR=stripped
 ```
 
-最后复制库到`openwrt`设备：
+## 部署到设备
+
+将编译产物复制到 OpenWrt 设备：
 
 ```bash
 scp stripped/usr/local/bin/tuctl* router:/usr/bin/
@@ -92,25 +142,24 @@ scp stripped/usr/local/sbin/tuctl router:/usr/sbin/
 scp ../libsodium/src/libsodium/.libs/libsodium.so router:/usr/lib/
 ```
 
-`ssh`到`openwrt`设备，设置开机启动模块:
+此时即可在 OpenWrt 设备上使用 `tuctl`、`tuctl_client` 等程序。
 
-此时就可以在`openwrt`设备上使用`tuctl`，`tuctl_client`等程序。
+## 降低 tuctl_client 内存占用
 
-## tuctl_client内存使用量问题
+路由器等内存受限设备上，可以通过环境变量 `TUTUICMPTUNNEL_PWHASH_MEMLIMIT`（单位：字节）降低密码哈希的内存占用。
 
-在内存受限的设备上，可通过降低密码哈希的内存占用来减少`tuctl_client`的内存使用。
-设置环境变量`TUTUICMPTUNNEL_PWHASH_MEMLIMIT`（单位：字节）即可实现。
+**服务端**（systemd 单元文件）：
 
-示例
+```ini
+Environment=TUTUICMPTUNNEL_PWHASH_MEMLIMIT=1024768
+```
 
-    服务器（单元文件）：
-    Environment=TUTUICMPTUNNEL_PWHASH_MEMLIMIT=1024768
+**客户端**：
 
-    客户端：
-    TUTUICMPTUNNEL_PWHASH_MEMLIMIT=1024768 tuctl_client ...
+```bash
+TUTUICMPTUNNEL_PWHASH_MEMLIMIT=1024768 tuctl_client ...
+```
 
-要点
-
-> 服务器与客户端必须使用相同的数值，否则将无法建立通信。 \
-> 该参数数值越小，内存占用越低，但安全性也会相应下降，请根据设备能力和风险评估进行权衡。 \
-> 服务器与客户端的TUTUICMPTUNNEL_PWHASH_MEMLIMIT必须一致；不一致将导致握手失败、无法通信。
+> [!WARNING]
+> * 服务端与客户端必须使用**相同的数值**，否则握手失败、无法建立通信。
+> * 数值越小内存占用越低，但安全性也随之下降，请根据设备能力和风险评估自行权衡。

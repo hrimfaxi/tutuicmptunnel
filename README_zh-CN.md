@@ -1,3 +1,7 @@
+[English](./README.md) | [简体中文](./README_zh-CN.md)
+
+---
+
 # tutuicmptunnel
 
 基于 `bpf` 的 `UDP` 转 `ICMP` 隧道工具，可作为 `udp2raw` `ICMP` 模式的替代方案。
@@ -64,9 +68,9 @@
 如果测试发现 ICMP 性能并不占优，甚至明显差于 UDP，说明当前环境中可能存在额外干扰因素，需要先排查链路中的中间设备。常见问题包括：
 
     性能较差、实现粗糙的家用光猫
-    各类“企业级”防火墙、上网行为管理设备，或其他会特殊处理 ICMP 的网关设备
+    各类"企业级"防火墙、上网行为管理设备，或其他会特殊处理 ICMP 的网关设备
 
-需要特别注意的是，这类设备有时即使在 Web 管理界面中显示“防火墙已关闭”，其底层仍然可能存在无法真正关闭的过滤、限速或策略处理逻辑。也就是说，看起来关掉了，实际上并没有完全关掉。
+需要特别注意的是，这类设备有时即使在 Web 管理界面中显示"防火墙已关闭"，其底层仍然可能存在无法真正关闭的过滤、限速或策略处理逻辑。也就是说，看起来关掉了，实际上并没有完全关掉。
 
 这些设备可能会对 ICMP 做限速、整形、优先级压制，甚至直接进行异常处理，从而导致测试结果失真。
 
@@ -76,7 +80,7 @@
 
     去掉问题光猫
     绕过或移除相关防火墙、网关设备
-    让测试链路尽量接近“裸网络”状态
+    让测试链路尽量接近"裸网络"状态
 
 然后重复第 1 步测试。只有在排除这些中间设备影响后，才能更准确判断该链路是否适合部署 `tutuicmptunnel`。
 
@@ -262,6 +266,8 @@ Peers:
 | [shadowquic](docs/shadowquic.md) | 基于 rust和QUIC 协议的代理工具，专为不稳定和高丢包网络优化。 |
 | [xray+hysteria](docs/xray_hysteria.md) | Xray 核心与 Hysteria 协议的组合，用于加速和稳定网络连接。 |
 | [xray+kcptun](docs/xray_kcptun.md) | Xray 核心与 KCPtun 协议的组合，用于加速和稳定网络连接。 |
+| [xray+mkcp](docs/xray_mkcp.md) | Xray 核心与自带的 mKCP 实现，用于加速和稳定网络连接。 |
+| [xray+dns](docs/xray_dns.md) | 在 VPS 上用 xray-core（dokodemo-door）转发 DNS，并在 OpenWrt 侧将 UDP 封装为 ICMP 传输。 |
 | [wireguard](docs/wireguard.md) | 一个现代化、高性能且配置简单的安全 VPN 隧道。 |
 | [openwrt](docs/openwrt.md) | 针对嵌入式设备（尤其是路由器）的高度可定制化 Linux 操作系统。 |
 | [mosh](docs/mosh.md) |  基于 SSH 启动、以 UDP 传输的漫游 Shell，支持断线重连并在高延迟/抖动网络下保持交互顺畅。 |

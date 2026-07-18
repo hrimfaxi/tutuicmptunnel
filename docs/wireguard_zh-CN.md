@@ -1,5 +1,9 @@
 # 使用 tutuicmptunnel 保护 WireGuard 流量
 
+[English](./wireguard.md) | [简体中文](./wireguard_zh-CN.md)
+
+---
+
 `WireGuard` 是一个高效、现代的基于 `UDP` 的 VPN 协议。但在某些网络环境中，ISP 会对 `UDP` 流量进行 QoS 限速甚至干扰，导致 WireGuard 性能下降或连接不稳定。
 
 `tutuicmptunnel` 可以将 WireGuard 的 UDP 流量封装进 ICMP 报文中传输，从而绕过针对 UDP 的限速和干扰。
