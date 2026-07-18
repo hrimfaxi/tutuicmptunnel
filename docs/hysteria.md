@@ -1,48 +1,59 @@
-# hysteria
+# Protecting hysteria Traffic with tutuicmptunnel
 
 [English](./hysteria.md) | [简体中文](./hysteria_zh-CN.md)
 
 ---
 
-## Example Demonstration
+`hysteria` uses UDP/QUIC transport, which is susceptible to ISP UDP QoS throttling and interference. With `tutuicmptunnel`, hysteria's UDP traffic can be encapsulated in ICMP packets for transmission:
 
-> Local -(SOCKS5)→ Hysteria-UDP -(ICMP)→ Server \
-> All parameters have been abstracted as placeholders. Please replace them according to your actual situation, especially domains/keys. \
-> ⚠️ The documentation intentionally omits real sensitive information like SNI, passwords, IPs, etc. Do not leave plaintext credentials in public spaces.
-
-We assume you currently have a working `hysteria` configuration with `UDP` port `3322`.
-Now you need to use `tutuicmptunnel` to transform the traffic into the `ICMP` protocol.
-
-## Dependencies
-
-`Ubuntu`:
-
-```bash
-sudo apt-get install curl
+```mermaid
+flowchart LR
+    subgraph Client
+        A[App] --> B[hysteria client<br/>SOCKS5]
+        B --> C[QUIC/UDP :3322]
+        C --> D[tutuicmptunnel<br/>encapsulate as ICMP]
+    end
+    D -- "ICMP (public network)" --> E
+    subgraph Server
+        E[tutuicmptunnel<br/>decapsulate] --> F[QUIC/UDP :3322]
+        F --> G[hysteria server]
+    end
 ```
 
-`Archlinux`:
+> [!WARNING]
+> All parameters in this document are placeholders (domains, keys, IPs, etc.). Please replace them according to your actual situation. Do not leak real SNI, passwords, IPs or other sensitive information in public spaces.
+
+## Prerequisites
+
+* A working `hysteria` configuration with UDP port `3322`
+* `curl` installed on the client:
 
 ```bash
+# Ubuntu
+sudo apt-get install curl
+
+# Arch Linux
 sudo pacman -S curl
 ```
 
-## `tutuicmptunnel` Settings
+## Deployment
 
-First, you need to select a `UID` for your client device on the server. For example, let's say the hostname is `a320` and the `UID` is 100.
+### 1. Assign UID
 
-`/etc/tutuicmptunnel/uids`:
+Choose a unique `UID` for each client device on the server. In this example, the hostname is `a320` and the `UID` is `100`.
 
+Add the following to `/etc/tutuicmptunnel/uids` on the **server**:
+
+```text
+100 a320
 ```
-100 a320 # a320
-```
 
-Add the above record to `/etc/tutuicmptunnel/uids` on the client side as well.
+Add the same record to `/etc/tutuicmptunnel/uids` on the **client** as well.
 
-## Modify Systemd Unit File
+### 2. Modify systemd unit (server side)
 
-Note that `tutuicmptunnel` cannot handle `GSO` packets, so `hysteria`'s related functionality needs to be disabled.
-Set the environment variable `QUIC_GO_DISABLE_GSO=1` as shown below:
+> [!IMPORTANT]
+> `tutuicmptunnel` cannot handle GSO packets. You must disable hysteria's GSO functionality via the environment variable `QUIC_GO_DISABLE_GSO=1`. This must be set on both client and server.
 
 `/etc/systemd/system/hysteria-server@.service`:
 
@@ -65,20 +76,11 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-## Clean Up Expired Sessions
+### 3. Configure client IP sync script
 
-Session cleanup is only needed if the architecture does not support `bpf_timer` (`mips` or older `ubuntu` versions).
+The client can use `tuctl_client` to remotely update the server's `tuctl` configuration. This way, when the client's public IP changes, the server can be notified promptly.
 
-```bash
-sudo cp contrib/etc/systemd/system/tutuicmptunnel-server-reaper.timer /etc/systemd/system/
-sudo systemctl enable --now tutuicmptunnel-server-reaper.timer
-```
-
-### Client IP Sync Script
-
-You can use the `tuctl_client` tool on the client to remotely update the server's `tuctl` configuration. This way, when the client's public IP changes, the server can be notified.
-
-`/usr/local/bin/tutuicmptunnel_sync.sh`:
+Create `/usr/local/bin/tutuicmptunnel_sync.sh`:
 
 ```bash
 #!/bin/bash
@@ -96,7 +98,7 @@ sudo tuctl dump > $TMP
 sudo tuctl unload iface $DEV
 sudo tuctl load iface $DEV
 
-export TUTU_UID=100 # Replace with the uid chosen on your server
+export TUTU_UID=100 # Replace with the uid or username chosen on your server
 export ADDRESS=yourdomain.com # Replace with your hysteria server domain or IP
 export PORT=3322 # Replace with your hysteria server udp port
 
@@ -110,30 +112,34 @@ export HOST=$ADDRESS
 export PSK=yourlongpsk # Replace with your tuctl_server PSK password
 export SERVER_PORT=your_tuserver_port # Replace with your tuctl_server port
 
-V tuctl_client psk $PSK server $HOST server-port $SERVER_PORT <<<"server-add uid $TUTU_UID address @client_ip@ port $PORT comment $COMMENT"
+echo "server-add uid $TUTU_UID address @client_ip@ port $PORT comment $COMMENT" | V tuctl_client \
+  psk $PSK \
+  server $HOST \
+  server-port $SERVER_PORT
 
 # vim: set sw=2 ts=2 expandtab:
 ```
 
-### Start `tutuicmptunnel`
+### 4. Start
 
 ```bash
-
 # First sync the client IP to the server
 /usr/local/bin/tutuicmptunnel_sync.sh
 
-# Then run the hysteria client
+# Then start the hysteria client (GSO must also be disabled)
 QUIC_GO_DISABLE_GSO=1 hysteria client -c client.yaml
 ```
 
-If the client's public IP changes frequently, you need to update the client IP to the server. You can add the above script to `crontab` to run periodically (every 5 minutes):
+### 5. (Optional) Periodic client IP sync
 
-```
+If the client's public IP changes frequently, you need to periodically update the server. You can use `crontab` to run the sync script every 5 minutes:
+
+```cron
 PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
 */5 * * * * /usr/local/bin/tutuicmptunnel_sync.sh
 ```
 
-Or use a `systemd-timer` to achieve the same goal:
+You can also use `systemd` timer to achieve the same effect:
 
 `/etc/systemd/system/tutuicmptunnel_sync.service`:
 
@@ -149,7 +155,7 @@ ExecStart=/usr/local/bin/tutuicmptunnel_sync.sh
 
 `/etc/systemd/system/tutuicmptunnel_sync.timer`:
 
-```
+```ini
 [Unit]
 Description=Run tutuicmptunnel_sync every 5 minutes
 
@@ -162,27 +168,30 @@ Persistent=true
 WantedBy=timers.target
 ```
 
-## Testing
+> [!NOTE]
+> Don't forget to run `systemctl daemon-reload` and enable the timer: `systemctl enable --now tutuicmptunnel_sync.timer`.
 
-Speed test:
+## Verification & Testing
+
+**Speed test:**
 
 ```bash
-hysteria speedtest -c client.yaml 
+hysteria speedtest -c client.yaml
 ```
 
-View ICMP tunnel counters:
+**View ICMP tunnel counters:**
 
 ```bash
 sudo tuctl -d
 ```
 
-BPF logs:
+**BPF logs:**
 
 ```bash
 sudo bpftool prog tracelog
 ```
 
-Check for ICMP packets:
+**Packet capture to confirm ICMP traffic:**
 
 ```bash
 sudo tcpdump -i any icmp -n -v

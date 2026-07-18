@@ -52,7 +52,7 @@ Add an inbound (`dokodemo-door`) on the server listening on `5353/UDP` and forwa
 > * Port `5353` is used to avoid conflict with `systemd-resolved`, which occupies port `53`.
 > * This inbound handles **UDP only**.
 
-### Restart the service
+Restart the service:
 
 ```sh
 sudo systemctl restart xray
