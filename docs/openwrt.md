@@ -9,17 +9,7 @@
 `tutuicmptunnel` relies on advanced kernel features such as `eBPF` and `kprobes`, and cannot run directly on standard OpenWrt firmware.
 Standard OpenWrt kernels are trimmed for size, defaulting to removal of debugging and tracing features not essential for basic routing.
 
-There are two approaches for deploying the client on an OpenWrt device:
-
-| Approach | Description | Best for |
-| :--- | :--- | :--- |
-| **Option 1: Automatic build (recommended)** | Use [openwrt-tutuicmptunnel](https://github.com/hrimfaxi/openwrt-tutuicmptunnel) to build packages automatically via the OpenWrt SDK | Most users |
-| **Option 2: Manual cross-compilation (this guide)** | Manually configure the toolchain, customize the OpenWrt kernel, and compile `tutuicmptunnel` and `tutu_csum_fixup` | Need to modify source code, debug, or your target platform has no build config yet |
-
-> [!TIP]
-> If you just want to get it running on your router, go with Option 1 — the build project already handles dependencies, install paths, and auto-start. This guide covers Option 2 for developers who need deeper control over the build process.
-
-## Option 2: Manual Cross-Compilation
+This guide details how to cross-compile `tutuicmptunnel` to successfully run in client mode on an OpenWrt device.
 
 The overall workflow is as follows:
 

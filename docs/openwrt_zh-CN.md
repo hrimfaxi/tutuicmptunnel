@@ -9,17 +9,7 @@
 `tutuicmptunnel` 依赖 `eBPF` 和 `kprobes` 等高级内核特性，无法直接在标准的 OpenWrt 固件上运行。
 标准的 OpenWrt 内核为了保持精简，默认裁剪了这些对于普通路由功能非必需的调试和追踪功能。
 
-在 OpenWrt 设备上部署客户端有两条路线：
-
-| 路线 | 说明 | 适合人群 |
-| :--- | :--- | :--- |
-| **方案一：自动编译（推荐）** | 使用 [openwrt-tutuicmptunnel](https://github.com/hrimfaxi/openwrt-tutuicmptunnel) 打包项目，基于 OpenWrt SDK 自动构建 | 绝大多数用户 |
-| **方案二：手工交叉编译（本文）** | 手工配置工具链，自定义 OpenWrt 内核并编译 `tutuicmptunnel` 及 `tutu_csum_fixup` 模块 | 需要修改源码、调试，或你的目标平台还没有打包配置 |
-
-> [!TIP]
-> 如果你只是想在路由器上用起来，请直接走方案一——打包项目已经处理了依赖、安装路径和开机自启等细节。本文介绍的是方案二，适合需要深入控制编译过程的开发者。
-
-## 方案二：手工交叉编译
+本指南将详细介绍如何交叉编译 `tutuicmptunnel` 项目，使其在 `OpenWrt` 设备上成功运行客户端模式。
 
 整体流程如下：
 
