@@ -9,8 +9,10 @@
 **A `UDP` ⇄ `ICMP` tunneling tool based on `eBPF`**
 
 Can serve as a high-performance alternative to `udp2raw` ICMP mode.
-Recommended to be used in combination with `kcptun` / `hysteria` / `wireguard` and other tools,
+Recommended to be used in combination with [`shadowquic`](docs/shadowquic.md) (officially recommended best companion) / `kcptun` / `hysteria` / `wireguard` and other tools,
 jointly coping with increasingly strict UDP QoS and packet loss policies, effectively improving penetration capability and connection stability.
+
+> **🎯 Official Recommendation**: [shadowquic](docs/shadowquic.md) is the **officially recommended best companion** for `tutuicmptunnel` — a Rust-based QUIC proxy optimized for unstable and high packet-loss networks, perfectly complementing ICMP tunneling.
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20OpenWrt-orange.svg)](#-operating-system-requirements-and-dependencies)
@@ -97,7 +99,7 @@ sequenceDiagram
 
 ### 🎯 Design Principles
 
-- Can be used in combination with `WireGuard`, `xray-core` + `kcptun`, `hysteria` and other tools. Since these tools already have built-in encryption and integrity verification capabilities, `tutuicmptunnel` provides simple XOR obfuscation and is **not responsible for encryption and verification**, mainly handling encapsulation and forwarding.
+- Can be used in combination with `WireGuard`, `xray-core` + `kcptun`, `hysteria`, `shadowquic` and other tools. Since these tools already have built-in encryption and integrity verification capabilities, `tutuicmptunnel` provides simple XOR obfuscation and is **not responsible for encryption and verification**, mainly handling encapsulation and forwarding.
 - **Does not modify packet payload content**, nor does it add extra IP headers to packets.
 - Server-side forwarding rules are entirely configured manually by the user via triples (can be invoked via [tuctl](tuctl/README.md) over SSH, or dynamically synchronized using `tuctl_client`).
 
@@ -314,9 +316,9 @@ Peers:
 
 | Name | Description |
 | :--- | :--- |
-| [iperf3](docs/iperf3.md) | Powerful network performance testing tool for measuring bandwidth, jitter, and packet loss |
+| [shadowquic](docs/shadowquic.md) | **🎯 Official Best Companion** — Proxy tool based on Rust and QUIC protocol, optimized for unstable and high packet-loss networks |
 | [hysteria](docs/hysteria.md) | Proxy tool based on the QUIC protocol, optimized for unstable and high packet-loss networks |
-| [shadowquic](docs/shadowquic.md) | Proxy tool based on Rust and QUIC protocol, optimized for unstable and high packet-loss networks |
+| [iperf3](docs/iperf3.md) | Powerful network performance testing tool for measuring bandwidth, jitter, and packet loss |
 | [xray + hysteria](docs/xray_hysteria.md) | Combination of Xray core and Hysteria protocol for accelerating and stabilizing network connections |
 | [xray + kcptun](docs/xray_kcptun.md) | Combination of Xray core and KCPTun protocol for accelerating and stabilizing network connections |
 | [xray + mkcp](docs/xray_mkcp.md) | Xray core with its built-in mKCP implementation for accelerating and stabilizing network connections |
