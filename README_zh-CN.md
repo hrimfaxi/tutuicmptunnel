@@ -14,7 +14,7 @@
 
 > **🎯 官方推荐**：[shadowquic](docs/shadowquic_zh-CN.md) 是 `tutuicmptunnel` 的**官方推荐最佳伴侣** —— 基于 Rust 的 QUIC 代理工具，专为不稳定和高丢包网络优化，与 ICMP 隧道完美互补。
 
-[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
+[![License: GPL-2.0-or-later](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20OpenWrt-orange.svg)](#-操作系统要求与依赖)
 [![Language](https://img.shields.io/badge/language-C%20%2B%20BPF-brightgreen.svg)](#)
 [![Benchmark](https://img.shields.io/badge/benchmark-blue.svg)](docs/benchmark_zh-CN.md)
@@ -316,7 +316,7 @@ Peers:
 
 | 名称 | 简介 |
 | :--- | :--- |
-| [shadowquic](docs/shadowquic_zh-CN.md) | **🎯 官方最佳伴侣** —— 基于 Rust 和 QUIC 协议的代理工具，专为不稳定和高丢包网络优化 |
+| [shadowquic](docs/shadowquic_zh-CN.md) | **🎯 官方推荐最佳伴侣** —— 基于 Rust 的 QUIC 代理工具，专为不稳定和高丢包网络优化，与 ICMP 隧道完美互补 |
 | [hysteria](docs/hysteria_zh-CN.md) | 基于 QUIC 协议的代理工具，专为不稳定和高丢包网络优化 |
 | [iperf3](docs/iperf3_zh-CN.md) | 强大的网络性能测试工具，用于测量带宽、抖动和丢包 |
 | [xray + hysteria](docs/xray_hysteria_zh-CN.md) | Xray 核心与 Hysteria 协议的组合，用于加速和稳定网络连接 |
@@ -347,5 +347,5 @@ Peers:
 
 ## 📄 许可证
 
-本项目整体遵循 **GNU General Public License v2.0**。
+本项目整体遵循 **GNU General Public License v2.0 或更高版本**（`GPL-2.0-or-later`）。
 其中 `libbpf`、`bpftool` 子模块保留其各自原始许可证（`LGPL-2.1` / `BSD-2-Clause`）。

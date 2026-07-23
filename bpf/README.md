@@ -116,4 +116,4 @@ tutu_csum_fixup/                 # 可选 kprobe 校验和修复模块
 许可证
 ------
 
-本 BPF 程序与附带源码均遵循 GNU General Public License v2.0。
+本 BPF 程序与附带源码均遵循 GNU General Public License v2.0 或更高版本 (`GPL-2.0-or-later`)。

@@ -14,7 +14,7 @@ jointly coping with increasingly strict UDP QoS and packet loss policies, effect
 
 > **🎯 Official Recommendation**: [shadowquic](docs/shadowquic.md) is the **officially recommended best companion** for `tutuicmptunnel` — a Rust-based QUIC proxy optimized for unstable and high packet-loss networks, perfectly complementing ICMP tunneling.
 
-[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
+[![License: GPL-2.0-or-later](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20OpenWrt-orange.svg)](#-operating-system-requirements-and-dependencies)
 [![Language](https://img.shields.io/badge/language-C%20%2B%20BPF-brightgreen.svg)](#)
 [![Benchmark](https://img.shields.io/badge/benchmark-blue.svg)](docs/benchmark.md)
@@ -316,7 +316,7 @@ Peers:
 
 | Name | Description |
 | :--- | :--- |
-| [shadowquic](docs/shadowquic.md) | **🎯 Official Best Companion** — Proxy tool based on Rust and QUIC protocol, optimized for unstable and high packet-loss networks |
+| [shadowquic](docs/shadowquic.md) | **🎯 Officially Recommended Best Companion** — Rust-based QUIC proxy, optimized for unstable and high packet-loss networks, perfectly complementing ICMP tunneling |
 | [hysteria](docs/hysteria.md) | Proxy tool based on the QUIC protocol, optimized for unstable and high packet-loss networks |
 | [iperf3](docs/iperf3.md) | Powerful network performance testing tool for measuring bandwidth, jitter, and packet loss |
 | [xray + hysteria](docs/xray_hysteria.md) | Combination of Xray core and Hysteria protocol for accelerating and stabilizing network connections |
@@ -347,5 +347,5 @@ Special thanks to [@hack3ric](https://github.com/hack3ric) and all contributors 
 
 ## 📄 License
 
-This project as a whole is licensed under the **GNU General Public License v2.0**.
+This project as a whole is licensed under the **GNU General Public License v2.0 or later** (`GPL-2.0-or-later`).
 The `libbpf` and `bpftool` submodules retain their respective original licenses (`LGPL-2.1` / `BSD-2-Clause`).
