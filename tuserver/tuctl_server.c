@@ -1,7 +1,11 @@
 #include <errno.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <inttypes.h>
 #include <netdb.h>
+#include <signal.h>
+#include <spawn.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -15,6 +19,9 @@
 #include "log.h"
 #include "try.h"
 #include "tuparser.h"
+
+/* glibc 仅在 _DEFAULT_SOURCE 下声明 environ，musl 无条件声明；显式 extern 保证两边一致 */
+extern char **environ;
 
 /**
  * @brief Parses command-line arguments.
@@ -174,6 +181,33 @@ static int write_all(int fd, const void *buf, size_t len) {
   return 0;
 }
 
+static int set_cloexec(int fd) {
+  int flags = fcntl(fd, F_GETFD);
+
+  if (flags < 0)
+    return -1;
+
+  return fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+}
+
+/* 父进程标准 fd 被关闭时 pipe() 可能返回 0/1/2，adddup2(fd, fd) 会退化；
+ * 把管道端提升到 >=3 并加 FD_CLOEXEC，避免依赖具体 libc 对等 fd 的处理。
+ * F_DUPFD_CLOEXEC 自 Linux 2.6.24 起可用，musl/glibc 均提供该 fcntl 命令。 */
+static int prepare_pipe_end(int *fd) {
+  int newfd;
+
+  if (*fd < STDERR_FILENO + 1) {
+    newfd = fcntl(*fd, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
+    if (newfd < 0)
+      return -1;
+    close(*fd);
+    *fd = newfd;
+    return 0;
+  }
+
+  return set_cloexec(*fd);
+}
+
 /**
  * @brief Executes a command in a child process, capturing stdout/stderr.
  * @param[out] resp_buf      Buffer to store the command's output.
@@ -182,94 +216,109 @@ static int write_all(int fd, const void *buf, size_t len) {
  * @return 0 on success, non-zero on failure.
  */
 static int execute_command(char *resp_buf, size_t *resp_len_out, size_t resp_buf_size, const uint8_t *cmd, size_t cmd_len) {
-  int   err        = 0;
-  int   inpipe[2]  = {-1, -1};
-  int   outpipe[2] = {-1, -1};
-  pid_t pid;
-  bool  sudo = sudo_enabled();
-
-  const char *tuctl_prog = "tuctl";
+  int                        err        = 0;
+  int                        inpipe[2]  = {-1, -1};
+  int                        outpipe[2] = {-1, -1};
+  posix_spawn_file_actions_t fa;
+  posix_spawnattr_t          attr;
+  sigset_t                   sigdef;
+  pid_t                      pid = -1;
+  int                        status;
+  char                      *argv[8];
+  size_t                     argc       = 0;
+  bool                       fa_ready   = false;
+  bool                       attr_ready = false;
+  bool                       sudo       = sudo_enabled();
+  const char                *tuctl_prog = "tuctl";
 
   if (detect_ktuctl()) {
     log_info("Use ktuctl instead of tuctl");
     tuctl_prog = "ktuctl";
   }
 
+  /* 管道端提升到 >=3 且带 FD_CLOEXEC。POSIX 规定 file action 按加入顺序执行，
+   * 之后才关闭仍带 FD_CLOEXEC 的 fd：adddup2 先复制到 0/1/2（新 fd 清除
+   * FD_CLOEXEC），原始管道端随后在 exec 时自动关闭，因此无需 addclose。 */
   try2_e(pipe(inpipe), "pipe: %s", strerrno);
+  try2_e(prepare_pipe_end(&inpipe[0]), "prepare inpipe[0] failed: %s", strerrno);
+  try2_e(prepare_pipe_end(&inpipe[1]), "prepare inpipe[1] failed: %s", strerrno);
   try2_e(pipe(outpipe), "pipe: %s", strerrno);
+  try2_e(prepare_pipe_end(&outpipe[0]), "prepare outpipe[0] failed: %s", strerrno);
+  try2_e(prepare_pipe_end(&outpipe[1]), "prepare outpipe[1] failed: %s", strerrno);
 
-  pid = fork();
-  if (pid == -1) {
-    try2(-1, "fork: %s", strerror(errno));
-  } else if (pid == 0) {
-    // --- Child Process ---
-    close(inpipe[1]); // Close write end of inpipe
-    inpipe[1] = -1;
-    dup2(inpipe[0], 0); // Redirect stdin from inpipe
-    close(inpipe[0]);
-    inpipe[0] = -1;
+  /* posix_spawn 系列失败返回正错误码，取负匹配 try2 的 <0 约定 */
+  try2(-posix_spawn_file_actions_init(&fa), "posix_spawn_file_actions_init failed: %s", strret);
+  fa_ready = true;
+  try2(-posix_spawn_file_actions_adddup2(&fa, inpipe[0], STDIN_FILENO), "adddup2 stdin failed: %s", strret);
+  try2(-posix_spawn_file_actions_adddup2(&fa, outpipe[1], STDOUT_FILENO), "adddup2 stdout failed: %s", strret);
+  try2(-posix_spawn_file_actions_adddup2(&fa, outpipe[1], STDERR_FILENO), "adddup2 stderr failed: %s", strret);
 
-    close(outpipe[0]); // Close read end of outpipe
-    outpipe[0] = -1;
-    dup2(outpipe[1], 1); // Redirect stdout to outpipe
-    dup2(outpipe[1], 2); // Redirect stderr to outpipe
-    close(outpipe[1]);
-    outpipe[1] = -1;
+  try2(-posix_spawnattr_init(&attr), "posix_spawnattr_init failed: %s", strret);
+  attr_ready = true;
+  sigemptyset(&sigdef);
+  sigaddset(&sigdef, SIGPIPE);
+  /* 父进程忽略 SIGPIPE 时，exec 不会重置被忽略的信号；用 SETSIGDEF 恢复子进程默认行为 */
+  try2(-posix_spawnattr_setsigdefault(&attr, &sigdef), "setsigdefault failed: %s", strret);
+  try2(-posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSIGDEF), "setflags failed: %s", strret);
 
-    if (sudo) {
-      execlp("sudo", "sudo", tuctl_prog, "script", "-", NULL);
-    } else {
-      execlp(tuctl_prog, tuctl_prog, "script", "-", NULL);
-    }
+  if (sudo)
+    argv[argc++] = "sudo";
+  argv[argc++] = (char *) tuctl_prog;
+  argv[argc++] = "script";
+  argv[argc++] = "-";
+  argv[argc]   = NULL;
 
-    perror("execlp"); // Should not be reached
-    if (sudo) {
-      log_error("sudo enabled, please check sudo setting");
-    }
-    exit(127);
-  } else {
-    int status;
+  /* 传入 environ，使子进程继承父进程环境（本函数无需改动环境变量） */
+  try2_ret(-posix_spawnp(&pid, argv[0], &fa, &attr, argv, environ), -1, "posix_spawnp %s failed: %s", argv[0], strret);
 
-    // --- Parent Process ---
-    try2_e(close(inpipe[0])); // Close read end
-    inpipe[0] = -1;
-    try2_e(close(outpipe[1])); // Close write end
-    outpipe[1] = -1;
+  close(inpipe[0]);
+  inpipe[0] = -1;
+  close(outpipe[1]);
+  outpipe[1] = -1;
 
-    try2(write_all(inpipe[1], cmd, cmd_len));
-    try2_e(close(inpipe[1])); // Close pipe to signal EOF to child
-    inpipe[1] = -1;
+  try2(write_all(inpipe[1], cmd, cmd_len));
+  try2_e(close(inpipe[1])); // Close pipe to signal EOF to child
+  inpipe[1] = -1;
 
-    *resp_len_out = 0;
-    ssize_t n;
-    while ((n = read(outpipe[0], resp_buf + *resp_len_out, resp_buf_size - *resp_len_out)) > 0) {
-      *resp_len_out += n;
-      if (*resp_len_out >= resp_buf_size)
-        break;
-    }
-    try2_e(close(outpipe[0]));
-    outpipe[0] = -1;
-    try2_e(waitpid(pid, &status, 0));
+  *resp_len_out = 0;
+  ssize_t n;
+  while ((n = read(outpipe[0], resp_buf + *resp_len_out, resp_buf_size - *resp_len_out)) > 0) {
+    *resp_len_out += n;
+    if (*resp_len_out >= resp_buf_size)
+      break;
+  }
+  try2_e(close(outpipe[0]));
+  outpipe[0] = -1;
 
-    if (!WIFEXITED(status)) {
-      log_error("command terminated abnormally (signal %d)", WTERMSIG(status));
-      err = -ECHILD;
+  for (;;) {
+    pid_t waited = waitpid(pid, &status, 0);
+    if (waited == pid)
+      break;
+    if (waited < 0 && errno != EINTR) {
+      err = -1;
       goto err_cleanup;
     }
-
-    if (WEXITSTATUS(status) != 0) {
-      log_warn("command exited with status %d, but response has %zu bytes", WEXITSTATUS(status), *resp_len_out);
-      /* 如果已经有输出（可能是错误信息），仍然尝试发送给客户端 */
-      if (*resp_len_out == 0) {
-        log_error("command failed with no output");
-        err = -EIO;
-        goto err_cleanup;
-      }
-      /* 否则继续，让上层发送已读取的错误信息 */
-    }
-
-    err = 0;
   }
+  pid = -1; // 已回收，避免 err_cleanup 重复 waitpid
+
+  if (!WIFEXITED(status)) {
+    log_error("command terminated abnormally (signal %d)", WTERMSIG(status));
+    err = -ECHILD;
+    goto err_cleanup;
+  }
+
+  if (WEXITSTATUS(status) != 0) {
+    log_warn("command exited with status %d, but response has %zu bytes", WEXITSTATUS(status), *resp_len_out);
+    /* 如果已经有输出（可能是错误信息），仍然尝试发送给客户端 */
+    if (*resp_len_out == 0) {
+      log_error("command failed with no output");
+      err = -EIO;
+      goto err_cleanup;
+    }
+    /* 否则继续，让上层发送已读取的错误信息 */
+  }
+
+  err = 0;
 
 err_cleanup:
   // Ensure all pipe fds are closed in parent on error
@@ -281,6 +330,16 @@ err_cleanup:
     close(outpipe[0]);
   if (outpipe[1] != -1)
     close(outpipe[1]);
+  /* spawn 成功后若后续读写失败，回收子进程，避免遗留僵尸（或仍在运行的子进程）。
+   * 先关掉父端 pipe：子进程若阻塞在写 stdout，会在默认 SIGPIPE 处置下退出。 */
+  if (pid > 0) {
+    while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
+      ;
+  }
+  if (fa_ready)
+    posix_spawn_file_actions_destroy(&fa);
+  if (attr_ready)
+    posix_spawnattr_destroy(&attr);
   return err;
 }
 
